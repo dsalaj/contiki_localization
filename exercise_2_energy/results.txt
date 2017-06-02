@@ -1,0 +1,102 @@
+# ENERGY for 131 nullmac nullrdc
+
+Radio ticks = 183034.000 
+CPU ticks = 4987.000 
+LPM ticks = 177688.000 
+Radio time = 5.585 s
+CPU time = 0.152 s
+LPM time = 5.422 s
+Radio energy = 368.659 mJ
+CPU energy = 0.904 mJ
+LPM energy = 0.975 mJ
+seconds = 5.574 s
+Radio power = 66.129 mW
+CPU power = 0.904 mW
+LPM power = 0.975 mW
+
+Radio ticks = 174146.000 
+CPU ticks = 4745.000 
+LPM ticks = 169059.000 
+Radio time = 5.314 s
+CPU time = 0.144 s
+LPM time = 5.159 s
+Radio energy = 350.757 mJ
+CPU energy = 0.860 mJ
+LPM energy = 0.927 mJ
+seconds = 5.304 s
+Radio power = 66.129 mW
+CPU power = 0.860 mW
+LPM power = 0.927 mW
+
+
+# ENERGY for 134 csma contikimac
+
+Radio ticks = 3179.000 
+CPU ticks = 11020.000 
+LPM ticks = 401623.000 
+Radio time = 0.097 s
+CPU time = 0.336 s
+LPM time = 12.256 s
+Radio energy = 6.403 mJ
+CPU energy = 1.997 mJ
+LPM energy = 2.204 mJ
+seconds = 12.592 s
+Radio power = 0.508 mW
+CPU power = 1.997 mW
+LPM power = 2.204 mW
+
+Radio ticks = 2458.000 
+CPU ticks = 8814.000 
+LPM ticks = 317956.000 
+Radio time = 0.075 s
+CPU time = 0.268 s
+LPM time = 9.703 s
+Radio energy = 4.950 mJ
+CPU energy = 1.597 mJ
+LPM energy = 1.745 mJ
+seconds = 9.972 s
+Radio power = 0.496 mW
+CPU power = 1.597 mW
+LPM power = 1.745 mW
+
+
+# DISTANCE MEASUREMENT
+Packet from 155.0; Sequence number = 162274; Power = -10; RSSI = -65
+Packet from 155.0; Sequence number = 162275; Power = -10; RSSI = -64
+Packet from 155.0; Sequence number = 162276; Power = -10; RSSI = -64
+Packet from 155.0; Sequence number = 162277; Power = -10; RSSI = -64
+Packet from 155.0; Sequence number = 162278; Power = -10; RSSI = -65
+Packet from 155.0; Sequence number = 162279; Power = -10; RSSI = -64
+Packet from 155.0; Sequence number = 162280; Power = -10; RSSI = -65
+Packet from 155.0; Sequence number = 162281; Power = -10; RSSI = -64
+Packet from 155.0; Sequence number = 162282; Power = -10; RSSI = -64
+Packet from 155.0; Sequence number = 162283; Power = -10; RSSI = -64
+Packet from 155.0; Sequence number = 162284; Power = -10; RSSI = -64
+Packet from 155.0; Sequence number = 162285; Power = -10; RSSI = -64
+Packet from 155.0; Sequence number = 162286; Power = -10; RSSI = -64
+Packet from 155.0; Sequence number = 162287; Power = -10; RSSI = -65
+Packet from 155.0; Sequence number = 162288; Power = -10; RSSI = -64
+Packet from 155.0; Sequence number = 162289; Power = -10; RSSI = -65
+Packet from 155.0; Sequence number = 162290; Power = -10; RSSI = -64
+Packet from 155.0; Sequence number = 162291; Power = -10; RSSI = -64
+Packet from 155.0; Sequence number = 162292; Power = -10; RSSI = -63
+Packet from 155.0; Sequence number = 162293; Power = -10; RSSI = -63
+Packet from 155.0; Sequence number = 162294; Power = -10; RSSI = -64
+Packet from 155.0; Sequence number = 162295; Power = -10; RSSI = -64
+Packet from 155.0; Sequence number = 162296; Power = -10; RSSI = -64
+Packet from 155.0; Sequence number = 162297; Power = -10; RSSI = -63
+Packet from 155.0; Sequence number = 162298; Power = -10; RSSI = -63
+Packet from 155.0; Sequence number = 162299; Power = -10; RSSI = -63
+Packet from 155.0; Sequence number = 162300; Power = -10; RSSI = -63
+Packet from 155.0; Sequence number = 162301; Power = -10; RSSI = -63
+Packet from 155.0; Sequence number = 162302; Power = -10; RSSI = -64
+Packet from 155.0; Sequence number = 162303; Power = -10; RSSI = -64
+Smallest power = -10 dBm
+
+
+
+
+
+
+
+
