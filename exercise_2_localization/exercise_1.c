@@ -28,7 +28,7 @@
 
 
 // Global variables
-static linkaddr_t addr = {143, 0};
+static linkaddr_t addr = {143, 0}; // sink address
 static uint8_t focus = 0;
 const int NODE_ADDR = 108;
 static uint8_t reception_counter = 0;
@@ -49,6 +49,7 @@ static double RH = 0.0f;
 
 static struct ctimer localization_timer;
 #define LOCALIZATION_TIME (CLOCK_SECOND * 20)
+#define LOWER_LIMIT_TR_POWER_LOC -25  // lowest transmission power accepted packet for localization
 
 static void read_sensors() {
     SENSORS_ACTIVATE(light_sensor);
@@ -271,25 +272,35 @@ recv_uc(struct unicast_conn *c, const linkaddr_t *from)
 static void send_uc(struct unicast_conn *c, int status, int tx) {
 }
 
+static uint8_t check_addr(int addr) {
+    int used_anchors[4] = {102, 106, 111, 114};
+    int i;
+    for (i = 0; i < 4; i++) {
+        if (used_anchors[i] == addr)
+            return 1;
+    }
+    return 0;
+}
 // BROADCAST RECEIVE
 static void
 broadcast_recv(struct broadcast_conn *c, const linkaddr_t *from)
 {
     //printf("broadcast message received from %d.%d\n", from->u8[0], from->u8[1]);
     //if (focus == 0 || from->u8[0] == NODE_ADDR){
-    if (from->u8[0] >= 100 && from->u8[0] <= 131){
+    if (check_addr(from->u8[0])){
+    // if (from->u8[0] >= 100 && from->u8[0] <= 131){
     //if (from->u8[0] == 104 || from->u8[0] == 108 || from->u8[0] == 117 || from->u8[0] == 115){
         struct ex2_packet msg;
         memcpy(&msg, packetbuf_dataptr(), sizeof(msg));
         int dbm = pa_to_dbm(msg.tx_power);
         //printf("Packet from %d.%d; Sequence number = %ld; Power = %d; RSSI = %d\n", from->u8[0], from->u8[1], msg.sequence_number, dbm, cc2420_last_rssi);
-        if (dbm < -10) {
+        if (dbm >= LOWER_LIMIT_TR_POWER_LOC) {
             float d = distance((float)dbm, (float)cc2420_last_rssi, 6.0f, 2.0f);
             //printf("Distance = %ld.%03d m\n", (long) d, (unsigned) ((d - floor(d))*1000));
             if (reception_counter < NO_ANCHORS_LOCALIZE){
-                //printf("Distance from node %d = %ld.%03d m\n", from->u8[0], (long) d, (unsigned) ((d - floor(d))*1000));
                 uint16_t d_cm = (uint16_t)(d * 100);
-                // printf("Distance from node %d = %d cm\n", from->u8[0], d_cm);
+                //printf("Distance from node %d = %ld.%03d m\n", from->u8[0], (long) d, (unsigned) ((d - floor(d))*1000));
+                printf("Distance from node %d = %d cm\n", from->u8[0], d_cm);
                 anchor_data[reception_counter].addr = from->u8[0];
                 anchor_data[reception_counter].dist = d_cm; // convert meters to centimeters
                 reception_counter++;
