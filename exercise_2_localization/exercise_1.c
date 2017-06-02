@@ -28,6 +28,11 @@
 
 
 // Global variables
+static linkaddr_t addr = {143, 0};
+static uint8_t focus = 0;
+const int NODE_ADDR = 108;
+static uint8_t reception_counter = 0;
+
 float x=2.000f;
 #define ANCHOR_RIME_BROADCAST_CHANNEL 150
 #define ANCHOR_PHY_CHANNEL 20 // for anchors
@@ -42,7 +47,8 @@ static uint16_t tsr = 0;
 static double T = 0.0f;
 static double RH = 0.0f;
 
-static struct etimer retransmit_timer;
+static struct ctimer localization_timer;
+#define LOCALIZATION_TIME (CLOCK_SECOND * 20)
 
 static void read_sensors() {
     SENSORS_ACTIVATE(light_sensor);
@@ -168,6 +174,7 @@ static int my_x() {
 static int my_y() {
     return (ur_coord.y + ll_coord.y)/2;
 }
+
 static void localize() {
     ll_coord.x = map[anchor_data[0].addr % 100].x - anchor_data[0].dist;
     ll_coord.y = map[anchor_data[0].addr % 100].y - anchor_data[0].dist;
@@ -201,6 +208,40 @@ static void localize() {
         i++;
     }
     printf("I am at x=%d y=%d!\n", my_x(), my_y());
+
+    read_sensors();
+
+    p.sequence_number = seq_num;
+    p.x = my_x();
+    p.y = my_y();
+    p.temperature = T; //T;
+    p.humidity = RH; // RH;
+    p.par = par; //par;
+    p.tsr = tsr; //tsr;
+    p.led_r = 0;
+    p.led_g = 0;
+    p.led_b = 0;
+    p.reserved = 0;
+    sent_seq_num = seq_num;
+
+    // after reception of ACK the seq_num will be incremented
+    // until then, retransmit every 0.5 seconds
+    printf("Going to send to sink: %d.%d ", addr.u8[0], addr.u8[1]);
+    while(sent_seq_num == seq_num){
+        packetbuf_clear();
+        packetbuf_copyfrom(&p, sizeof(struct unicast_packet));
+        if(!linkaddr_cmp(&addr, &linkaddr_node_addr)) {
+          unicast_send(&uc, &addr);
+        }
+        // FIXME: can not use etimer here!
+        // Wait for 0.5s before retransmitting
+        // static struct etimer retransmit_timer;
+        // etimer_set(&retransmit_timer, (CLOCK_SECOND / 2));
+        // PROCESS_WAIT_EVENT_UNTIL(etimer_expired(&retransmit_timer));
+        // printf(".");
+        break;
+    }
+    printf("\n");
 }
 
 // Main process
@@ -230,10 +271,6 @@ recv_uc(struct unicast_conn *c, const linkaddr_t *from)
 static void send_uc(struct unicast_conn *c, int status, int tx) {
 }
 
-static uint8_t focus = 0;
-const int NODE_ADDR = 108;
-static uint8_t reception_counter = 0;
-
 // BROADCAST RECEIVE
 static void
 broadcast_recv(struct broadcast_conn *c, const linkaddr_t *from)
@@ -252,17 +289,23 @@ broadcast_recv(struct broadcast_conn *c, const linkaddr_t *from)
             if (reception_counter < NO_ANCHORS_LOCALIZE){
                 //printf("Distance from node %d = %ld.%03d m\n", from->u8[0], (long) d, (unsigned) ((d - floor(d))*1000));
                 uint16_t d_cm = (uint16_t)(d * 100);
-                printf("Distance from node %d = %d cm\n", from->u8[0], d_cm);
+                // printf("Distance from node %d = %d cm\n", from->u8[0], d_cm);
                 anchor_data[reception_counter].addr = from->u8[0];
                 anchor_data[reception_counter].dist = d_cm; // convert meters to centimeters
                 reception_counter++;
                 if (reception_counter == NO_ANCHORS_LOCALIZE) {
-                    printf("Now calculate the minmax location!\n");
+                    // printf("Now calculate the minmax location!\n");
                     localize();
                 }
             }
         }
     }
+}
+
+static void reset_reception_counter(void *ptr);
+static void reset_reception_counter(void *ptr){
+    reception_counter = 0;
+    ctimer_set(&localization_timer, LOCALIZATION_TIME, reset_reception_counter, NULL);
 }
 
 // MAIN THREAD
@@ -275,49 +318,14 @@ PROCESS_THREAD(exercise_1, ev, data){
     broadcast_open(&broadcast, ANCHOR_RIME_BROADCAST_CHANNEL, &broadcast_call);
     static const struct unicast_callbacks unicast_callbacks = {recv_uc, send_uc};
     unicast_open(&uc, 181, &unicast_callbacks);
-    static linkaddr_t addr;
-    addr.u8[0] = 143;
-    addr.u8[1] = 0;
+    ctimer_set(&localization_timer, LOCALIZATION_TIME, reset_reception_counter, NULL);
 
     // wait for button event
     while(1) {
         SENSORS_ACTIVATE(button_sensor);
         PROCESS_WAIT_EVENT();
-        // TODO: trigger also every 20 seconds
-        if(ev == sensors_event && data == &button_sensor){
+        if((ev == sensors_event && data == &button_sensor) || etimer_expired(&localization_timer)){
             reception_counter = 0;
-            /*
-            read_sensors();
-
-            p.sequence_number = seq_num;
-            p.x = 105;
-            p.y = 342;
-            p.temperature = T; //T;
-            p.humidity = RH; // RH;
-            p.par = par; //par;
-            p.tsr = tsr; //tsr;
-            p.led_r = 0;
-            p.led_g = 0;
-            p.led_b = 0;
-            p.reserved = 0;
-            sent_seq_num = seq_num;
-
-            // after reception of ACK the seq_num will be incremented
-            // until then, retransmit every 0.5 seconds
-            printf("Going to send to sink: %d.%d ", addr.u8[0], addr.u8[1]);
-            while(sent_seq_num == seq_num){
-                packetbuf_clear();
-                packetbuf_copyfrom(&p, sizeof(struct unicast_packet));
-                if(!linkaddr_cmp(&addr, &linkaddr_node_addr)) {
-                  unicast_send(&uc, &addr);
-                }
-                // Wait for 0.5s before retransmitting
-                etimer_set(&retransmit_timer, (CLOCK_SECOND / 2));
-                PROCESS_WAIT_EVENT_UNTIL(etimer_expired(&retransmit_timer) || (seq_num > sent_seq_num));
-                printf(".");
-            }
-            printf("\n");
-            */
         }
         SENSORS_DEACTIVATE(button_sensor);
     }
