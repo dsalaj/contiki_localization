@@ -51,6 +51,14 @@ static struct ctimer localization_timer;
 #define LOCALIZATION_TIME (CLOCK_SECOND * 20)
 #define LOWER_LIMIT_TR_POWER_LOC -25  // lowest transmission power accepted packet for localization
 
+int absolute(int value) {
+    if (value < 0) {
+        return -value;
+    }
+    else {
+        return value;
+    }
+}
 static void read_sensors() {
     SENSORS_ACTIVATE(light_sensor);
     par = light_sensor.value(LIGHT_SENSOR_PHOTOSYNTHETIC);
@@ -175,40 +183,65 @@ static int my_x() {
 static int my_y() {
     return (ur_coord.y + ll_coord.y)/2;
 }
+static int my_precision() {
+    int x_prec = absolute(absolute(ur_coord.x) - absolute(ll_coord.x));
+    int y_prec = absolute(absolute(ur_coord.y) - absolute(ll_coord.y));
+    return (x_prec + y_prec)/2;
+}
 
 static void localize() {
-    ll_coord.x = map[anchor_data[0].addr % 100].x - anchor_data[0].dist;
-    ll_coord.y = map[anchor_data[0].addr % 100].y - anchor_data[0].dist;
-    ur_coord.x = map[anchor_data[0].addr % 100].x + anchor_data[0].dist;
-    ur_coord.y = map[anchor_data[0].addr % 100].y + anchor_data[0].dist;
+    printf("STARTDRAW\n"); // DRAW Start Statement.
+    ll_coord.x = -5000;
+    ll_coord.y = -5000;
+    ur_coord.x = 5000;
+    ur_coord.y = 5000;
+    // ll_coord.x = map[anchor_data[0].addr % 100].x - anchor_data[0].dist;
+    // ll_coord.y = map[anchor_data[0].addr % 100].y - anchor_data[0].dist;
+    // ur_coord.x = map[anchor_data[0].addr % 100].x + anchor_data[0].dist;
+    // ur_coord.y = map[anchor_data[0].addr % 100].y + anchor_data[0].dist;
     // printf("Starting LL x=%d y=%d, UR x=%d y=%d\n", ll_coord.x, ll_coord.y, ur_coord.x, ur_coord.y);
-    int i = 1;
+    int ll_x = 0;
+    int ll_y = 0;
+    int ur_x = 0;
+    int ur_y = 0;
+    int i = 0;
     while (i < NO_ANCHORS_LOCALIZE){
-        int ll_x = map[anchor_data[i].addr % 100].x - anchor_data[i].dist;
-        int ll_y = map[anchor_data[i].addr % 100].y - anchor_data[i].dist;
-        int ur_x = map[anchor_data[i].addr % 100].x + anchor_data[i].dist;
-        int ur_y = map[anchor_data[i].addr % 100].y + anchor_data[i].dist;
+        ll_x = map[anchor_data[i].addr % 100].x - anchor_data[i].dist;
+        ll_y = map[anchor_data[i].addr % 100].y - anchor_data[i].dist;
+        ur_x = map[anchor_data[i].addr % 100].x + anchor_data[i].dist;
+        ur_y = map[anchor_data[i].addr % 100].y + anchor_data[i].dist;
+        // printf("DRAW_RECT_FROM_CENTER(%d,%d,%d)\n", map[anchor_data[reception_counter].addr % 100].x, map[anchor_data[reception_counter].addr % 100].y, d_cm);
+        printf("DRAW_SQUARE_DENSITY(%d,%d,%d,%d,#00ff00,none,1.0)\n", ll_x, ll_y, ur_x, ur_y);
         // printf("checking node %d LL x=%d y=%d, UR x=%d y=%d\n",anchor_data[i].addr, ll_x, ll_y, ur_x, ur_y);
         if (ll_x > ll_coord.x){
-            ll_coord.x = ll_x;
             // printf("took ll x\n");
+            // printf("ll_coord %d = %d\n", ll_coord.x, ll_x);
+            ll_coord.x = ll_x;
         }
         if (ll_y > ll_coord.y){
-            ll_coord.y = ll_y;
             // printf("took ll y\n");
+            // printf("ll_coord %d = %d\n", ll_coord.y, ll_y);
+            ll_coord.y = ll_y;
         }
-        if (ur_x < ll_coord.x) {
-            ll_coord.x = ur_x;
+        if (ur_x < ur_coord.x) {
             // printf("took ur x\n");
+            // printf("ur_coord %d = %d\n", ur_coord.x, ur_x);
+            ur_coord.x = ur_x;
         }
-        if (ur_y < ll_coord.y) {
-            ll_coord.y = ur_y;
+        if (ur_y < ur_coord.y) {
             // printf("took ur y\n");
+            // printf("ur_coord %d = %d\n", ur_coord.y, ur_y);
+            ur_coord.y = ur_y;
         }
 
         i++;
     }
-    printf("I am at x=%d y=%d!\n", my_x(), my_y());
+    int x = my_x();
+    int y = my_y();
+    printf("I am at x=%d y=%d!\n", x, y);
+    printf("DRAW_SQUARE_DENSITY(%d,%d,%d,%d,#00ff00,#ff2211,0.5)\n", ll_coord.x, ll_coord.y, ur_coord.x, ur_coord.y);
+    //printf("DRAW_CIRCLE(%d,%d,%d,#aaaa00, none, 0.3)\n", x, y, my_precision());
+    printf("DRAW_CIRCLE(%d,%d,%d,#aaaa00, #44ff44)\n", x, y, 20);
 
     read_sensors();
 
@@ -325,6 +358,7 @@ PROCESS_THREAD(exercise_1, ev, data){
     PROCESS_BEGIN();
     cc2420_set_channel(ANCHOR_PHY_CHANNEL);
 
+    printf("STARTDRAW\n"); // DRAW Start Statement.
     static const struct broadcast_callbacks broadcast_call = {broadcast_recv};
     broadcast_open(&broadcast, ANCHOR_RIME_BROADCAST_CHANNEL, &broadcast_call);
     static const struct unicast_callbacks unicast_callbacks = {recv_uc, send_uc};
