@@ -36,6 +36,9 @@ static linkaddr_t addr = {143, 0}; // sink address
 static uint8_t focus = 0;
 const int NODE_ADDR = 108;
 static uint8_t reception_counter = 0;
+// static int used_anchors[4] = {102, 106, 109, 111, 113, 115};
+static int used_anchors[4] = {108, 109, 100, 101};
+#define USED_ANCHOR_NUM 4
 
 float x=2.000f;
 #define ANCHOR_RIME_BROADCAST_CHANNEL 150
@@ -56,7 +59,7 @@ static struct ctimer localization_timer;
 static struct ctimer sink_timer;
 static struct ctimer retransmit_timer;
 #define LOCALIZATION_TIME (CLOCK_SECOND * 20)
-#define LOWER_LIMIT_TR_POWER_LOC -10  // lowest transmission power accepted packet for localization
+#define LOWER_LIMIT_TR_POWER_LOC -15  // lowest transmission power accepted packet for localization
 
 int absolute(int value) {
     if (value < 0) {
@@ -145,42 +148,43 @@ struct anchor anchor_data[NO_ANCHORS_LOCALIZE];
 struct coords {
     int x;
     int y;
+    uint8_t unstable;
 };
 struct coords ll_coord;
 struct coords ur_coord;
 struct coords map[32] = {
-    {.x = 368, .y = 0},    // node 100
-    {.x = 170, .y = 0},    // node 101
-    {.x = 32, .y = 149},   // node 102
-    {.x = 32, .y = 300},   // node 103
-    {.x = 32, .y = 459},   // node 104
-    {.x = 32, .y = 609},   // node 105
-    {.x = 32, .y = 754},   // node 106
-    {.x = 32, .y = 865},   // node 107
-    {.x = 164, .y = 1000}, // node 108
-    {.x = 368, .y = 1000}, // node 109
-    {.x = 465, .y = 859},  // node 110
-    {.x = 465, .y = 750},  // node 111
-    {.x = 465, .y = 610},  // node 112
-    {.x = 465, .y = 462},  // node 113
-    {.x = 465, .y = 310},  // node 114
-    {.x = 465, .y = 151},  // node 115
-    {.x = 537, .y = 100},  // node 116
-    {.x = 630, .y = 510},  // node 117
-    {.x = 630, .y = 694},  // node 118
-    {.x = 47, .y = 960},   // node 119
-    {.x = 16, .y = 227},   // node 120
-    {.x = 16, .y = 385},   // node 121
-    {.x = 16, .y = 689},   // node 122
-    {.x = 16, .y = 815},   // node 123
-    {.x = 578, .y = 985},  // node 124
-    {.x = 610, .y = 694},  // node 125
-    {.x = 610, .y = 467},  // node 126
-    {.x = 408, .y = 35},   // node 127
-    {.x = 910, .y = -100}, // node 128
-    {.x = 88, .y = 0},     // node 129
-    {.x = 42, .y = 0},     // node 130
-    {.x = 22, .y = 70},    // node 131
+    {.unstable = 0, .x = 368, .y = 0},    // node 100
+    {.unstable = 0, .x = 170, .y = 0},    // node 101
+    {.unstable = 0, .x = 32, .y = 149},   // node 102
+    {.unstable = 0, .x = 32, .y = 300},   // node 103
+    {.unstable = 0, .x = 32, .y = 459},   // node 104
+    {.unstable = 0, .x = 32, .y = 609},   // node 105
+    {.unstable = 0, .x = 32, .y = 754},   // node 106
+    {.unstable = 0, .x = 32, .y = 865},   // node 107
+    {.unstable = 0, .x = 164, .y = 1000}, // node 108
+    {.unstable = 0, .x = 368, .y = 1000}, // node 109
+    {.unstable = 0, .x = 465, .y = 859},  // node 110
+    {.unstable = 0, .x = 465, .y = 750},  // node 111
+    {.unstable = 0, .x = 465, .y = 610},  // node 112
+    {.unstable = 0, .x = 465, .y = 462},  // node 113
+    {.unstable = 0, .x = 465, .y = 310},  // node 114
+    {.unstable = 0, .x = 465, .y = 151},  // node 115
+    {.unstable = 0, .x = 537, .y = 100},  // node 116
+    {.unstable = 0, .x = 630, .y = 510},  // node 117
+    {.unstable = 0, .x = 630, .y = 694},  // node 118
+    {.unstable = 0, .x = 47, .y = 960},   // node 119
+    {.unstable = 0, .x = 16, .y = 227},   // node 120
+    {.unstable = 0, .x = 16, .y = 385},   // node 121
+    {.unstable = 0, .x = 16, .y = 689},   // node 122
+    {.unstable = 0, .x = 16, .y = 815},   // node 123
+    {.unstable = 0, .x = 578, .y = 985},  // node 124
+    {.unstable = 0, .x = 610, .y = 694},  // node 125
+    {.unstable = 0, .x = 610, .y = 467},  // node 126
+    {.unstable = 0, .x = 408, .y = 35},   // node 127
+    {.unstable = 0, .x = 910, .y = -100}, // node 128
+    {.unstable = 0, .x = 88, .y = 0},     // node 129
+    {.unstable = 0, .x = 42, .y = 0},     // node 130
+    {.unstable = 0, .x = 22, .y = 70},    // node 131
 };
 
 
@@ -243,6 +247,30 @@ static void forward_to_sink_callback(void *ptr){
 }
 static void localize() {
     printf("STARTDRAW\n"); // DRAW Start Statement.
+    struct anchor unique_anchor_data[USED_ANCHOR_NUM];
+    int i = 0;
+    uint8_t unstable[USED_ANCHOR_NUM] = {0, 0, 0, 0};
+    uint16_t prev_dist[USED_ANCHOR_NUM];
+    for (i = 0; i < NO_ANCHORS_LOCALIZE; i++){
+        uint8_t anchor_counter = 0;
+        for (anchor_counter = 0; anchor_counter < USED_ANCHOR_NUM; anchor_counter++){
+            if (anchor_data[i].addr == used_anchors[anchor_counter]) {
+                int diff = 0;
+                if (prev_dist[anchor_counter] == 0) {
+                    prev_dist[anchor_counter] = anchor_data[i].dist; // initialize first prev distance
+                } else {
+                    diff = absolute(prev_dist[anchor_counter] - anchor_data[i].dist); // calculate difference
+                }
+                printf("Difference for node %d is %d m\n", anchor_data[i].addr, diff);
+                if (diff > 200) {
+                    printf("NEVALJA!\n");
+                    map[anchor_data[i].addr % 100].unstable = 1;
+                }
+                prev_dist[anchor_counter] = anchor_data[i].dist;
+            }
+        }
+    }
+
     ll_coord.x = -5000;
     ll_coord.y = -5000;
     ur_coord.x = 5000;
@@ -256,8 +284,11 @@ static void localize() {
     int ll_y = 0;
     int ur_x = 0;
     int ur_y = 0;
-    int i = 0;
-    while (i < NO_ANCHORS_LOCALIZE){
+    for (i = 0; i < NO_ANCHORS_LOCALIZE; i++){
+        if (map[anchor_data[i].addr % 100].unstable == 1) {
+            printf("skip!\n");
+            continue;
+        }
         ll_x = map[anchor_data[i].addr % 100].x - anchor_data[i].dist;
         ll_y = map[anchor_data[i].addr % 100].y - anchor_data[i].dist;
         ur_x = map[anchor_data[i].addr % 100].x + anchor_data[i].dist;
@@ -285,8 +316,6 @@ static void localize() {
             // printf("ur_coord %d = %d\n", ur_coord.y, ur_y);
             ur_coord.y = ur_y;
         }
-
-        i++;
     }
     int x = my_x();
     int y = my_y();
@@ -323,7 +352,6 @@ static void send_uc(struct unicast_conn *c, int status, int tx) {
 }
 
 static uint8_t check_addr(int addr) {
-    int used_anchors[4] = {102, 106, 109, 111, 113, 115};
     int i;
     for (i = 0; i < 4; i++) {
         if (used_anchors[i] == addr)
@@ -345,7 +373,7 @@ broadcast_recv(struct broadcast_conn *c, const linkaddr_t *from)
         int dbm = pa_to_dbm(msg.tx_power);
         //printf("Packet from %d.%d; Sequence number = %ld; Power = %d; RSSI = %d\n", from->u8[0], from->u8[1], msg.sequence_number, dbm, cc2420_last_rssi);
         if (dbm >= LOWER_LIMIT_TR_POWER_LOC) {
-            float d = distance((float)dbm, (float)cc2420_last_rssi, 6.0f, 2.0f);
+            float d = distance((float)dbm, (float)cc2420_last_rssi, 4.0f, 2.0f);
             //printf("Distance = %ld.%03d m\n", (long) d, (unsigned) ((d - floor(d))*1000));
             if (reception_counter < NO_ANCHORS_LOCALIZE){
                 uint16_t d_cm = (uint16_t)(d * 100);
