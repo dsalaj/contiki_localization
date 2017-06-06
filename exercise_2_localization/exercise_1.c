@@ -37,8 +37,8 @@ static uint8_t focus = 0;
 const int NODE_ADDR = 108;
 static uint8_t reception_counter = 0;
 // static int used_anchors[4] = {102, 106, 109, 111, 113, 115};
-static int used_anchors[8] = {108, 109, 100, 101, 110, 111, 114, 115};
-#define USED_ANCHOR_NUM 8
+static int used_anchors[11] = {108, 109, 100, 101, 104, 105, 110, 111, 113, 114, 115};
+#define USED_ANCHOR_NUM 11
 
 float x=2.000f;
 #define ANCHOR_RIME_BROADCAST_CHANNEL 150
@@ -290,8 +290,12 @@ static void localize() {
     int ur_y = 0;
     uint8_t anchor_counter = 0;
     for (anchor_counter = 0; anchor_counter < USED_ANCHOR_NUM; anchor_counter++){
-        printf("LOCALIZE: node %d number %d distance sum %d\n", used_anchors[anchor_counter], map[used_anchors[anchor_counter] % 100].no_dist, map[used_anchors[anchor_counter] % 100].dist);
+        // printf("LOCALIZE: node %d number %d distance sum %d\n", used_anchors[anchor_counter], map[used_anchors[anchor_counter] % 100].no_dist, map[used_anchors[anchor_counter] % 100].dist);
         int dist = map[used_anchors[anchor_counter] % 100].dist / map[used_anchors[anchor_counter] % 100].no_dist;
+        printf("LOCALIZE: node %d distance %d\n", used_anchors[anchor_counter], dist);
+        if (dist > 450) {
+            continue;
+        }
         ll_x = map[used_anchors[anchor_counter] % 100].x - dist;
         ll_y = map[used_anchors[anchor_counter] % 100].y - dist;
         ur_x = map[used_anchors[anchor_counter] % 100].x + dist;
