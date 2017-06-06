@@ -27,6 +27,10 @@
 #include "energest.h"
 
 
+// Main process
+PROCESS(exercise_1, "Exercise 1");
+AUTOSTART_PROCESSES(&exercise_1);
+
 // Global variables
 static linkaddr_t addr = {143, 0}; // sink address
 static uint8_t focus = 0;
@@ -36,7 +40,7 @@ static uint8_t reception_counter = 0;
 float x=2.000f;
 #define ANCHOR_RIME_BROADCAST_CHANNEL 150
 #define ANCHOR_PHY_CHANNEL 20 // for anchors
-// #define ANCHOR_PHY_CHANNEL 25 // for unicast with sink
+#define SINK_PHY_CHANNEL 25 // for unicast with sink
 #define NO_ANCHORS_LOCALIZE 20 // number of anchor packets to localize from
 static struct unicast_conn uc;
 static struct broadcast_conn broadcast;
@@ -47,9 +51,12 @@ static uint16_t tsr = 0;
 static double T = 0.0f;
 static double RH = 0.0f;
 
+static uint8_t forward_to_sink = 0;
 static struct ctimer localization_timer;
+static struct ctimer sink_timer;
+static struct ctimer retransmit_timer;
 #define LOCALIZATION_TIME (CLOCK_SECOND * 20)
-#define LOWER_LIMIT_TR_POWER_LOC -25  // lowest transmission power accepted packet for localization
+#define LOWER_LIMIT_TR_POWER_LOC -10  // lowest transmission power accepted packet for localization
 
 int absolute(int value) {
     if (value < 0) {
@@ -189,6 +196,51 @@ static int my_precision() {
     return (x_prec + y_prec)/2;
 }
 
+static void retransmit(void *ptr);
+static void retransmit(void *ptr){
+    if (forward_to_sink) {
+        printf("Retransmit ctimer callback!\n");
+        packetbuf_clear();
+        packetbuf_copyfrom(&p, sizeof(struct unicast_packet));
+        if(!linkaddr_cmp(&addr, &linkaddr_node_addr)) {
+          unicast_send(&uc, &addr);
+        }
+        if(sent_seq_num == seq_num){
+            ctimer_set(&retransmit_timer, (CLOCK_SECOND / 2), retransmit, NULL);
+        } else {
+            forward_to_sink = 0;
+            cc2420_set_channel(ANCHOR_PHY_CHANNEL);
+            printf("changing channel back to ANCHOR\n");
+        }
+    }
+}
+static void forward_to_sink_callback(void *ptr);
+static void forward_to_sink_callback(void *ptr){
+    cc2420_set_channel(SINK_PHY_CHANNEL);
+
+    printf("SINK ctimer: Start of sink unicast process\n");
+    read_sensors();
+
+    p.sequence_number = seq_num;
+    p.x = my_x();
+    p.y = my_y();
+    p.temperature = T; //T;
+    p.humidity = RH; // RH;
+    p.par = par; //par;
+    p.tsr = tsr; //tsr;
+    p.led_r = 0;
+    p.led_g = 0;
+    p.led_b = 0;
+    p.reserved = 0;
+    sent_seq_num = seq_num;
+
+    // after reception of ACK the seq_num will be incremented
+    // until then, retransmit every 0.5 seconds
+    printf("Going to send to sink: %d.%d \n", addr.u8[0], addr.u8[1]);
+    if(sent_seq_num == seq_num){
+        ctimer_set(&retransmit_timer, (CLOCK_SECOND / 2), retransmit, NULL);
+    }
+}
 static void localize() {
     printf("STARTDRAW\n"); // DRAW Start Statement.
     ll_coord.x = -5000;
@@ -242,45 +294,9 @@ static void localize() {
     printf("DRAW_SQUARE_DENSITY(%d,%d,%d,%d,#00ff00,#ff2211,0.5)\n", ll_coord.x, ll_coord.y, ur_coord.x, ur_coord.y);
     //printf("DRAW_CIRCLE(%d,%d,%d,#aaaa00, none, 0.3)\n", x, y, my_precision());
     printf("DRAW_CIRCLE(%d,%d,%d,#aaaa00, #44ff44)\n", x, y, 20);
-
-    read_sensors();
-
-    p.sequence_number = seq_num;
-    p.x = my_x();
-    p.y = my_y();
-    p.temperature = T; //T;
-    p.humidity = RH; // RH;
-    p.par = par; //par;
-    p.tsr = tsr; //tsr;
-    p.led_r = 0;
-    p.led_g = 0;
-    p.led_b = 0;
-    p.reserved = 0;
-    sent_seq_num = seq_num;
-
-    // after reception of ACK the seq_num will be incremented
-    // until then, retransmit every 0.5 seconds
-    printf("Going to send to sink: %d.%d ", addr.u8[0], addr.u8[1]);
-    while(sent_seq_num == seq_num){
-        packetbuf_clear();
-        packetbuf_copyfrom(&p, sizeof(struct unicast_packet));
-        if(!linkaddr_cmp(&addr, &linkaddr_node_addr)) {
-          unicast_send(&uc, &addr);
-        }
-        // FIXME: can not use etimer here!
-        // Wait for 0.5s before retransmitting
-        // static struct etimer retransmit_timer;
-        // etimer_set(&retransmit_timer, (CLOCK_SECOND / 2));
-        // PROCESS_WAIT_EVENT_UNTIL(etimer_expired(&retransmit_timer));
-        // printf(".");
-        break;
-    }
-    printf("\n");
+    forward_to_sink = 1;
+    ctimer_set(&sink_timer, (CLOCK_SECOND/2), forward_to_sink_callback, NULL);
 }
-
-// Main process
-PROCESS(exercise_1, "Exercise 1");
-AUTOSTART_PROCESSES(&exercise_1);
 
 
 // UNICAST RECEIVE
@@ -297,6 +313,7 @@ recv_uc(struct unicast_conn *c, const linkaddr_t *from)
             && !msg.reserved
             ) {
             seq_num++;
+            printf("SUCCESS: received correct ACK packet!\n");
         } else {
             printf("ERROR: received corrupted ACK packet!\n");
         }
@@ -306,7 +323,7 @@ static void send_uc(struct unicast_conn *c, int status, int tx) {
 }
 
 static uint8_t check_addr(int addr) {
-    int used_anchors[4] = {102, 106, 111, 114};
+    int used_anchors[4] = {102, 106, 109, 111, 113, 115};
     int i;
     for (i = 0; i < 4; i++) {
         if (used_anchors[i] == addr)
@@ -352,6 +369,7 @@ static void reset_reception_counter(void *ptr){
     ctimer_set(&localization_timer, LOCALIZATION_TIME, reset_reception_counter, NULL);
 }
 
+
 // MAIN THREAD
 PROCESS_THREAD(exercise_1, ev, data){
     PROCESS_EXITHANDLER(broadcast_close(&broadcast);)
@@ -369,10 +387,16 @@ PROCESS_THREAD(exercise_1, ev, data){
     while(1) {
         SENSORS_ACTIVATE(button_sensor);
         PROCESS_WAIT_EVENT();
-        if((ev == sensors_event && data == &button_sensor) || etimer_expired(&localization_timer)){
+        if(ev == sensors_event && data == &button_sensor){
+            printf("MAIN PRC: EVENT triggered localization\n");
             reception_counter = 0;
         }
+        //if(forward_to_sink) {
+        //    printf("MAIN PRC: timer triggered sink forward\n");
+        //    ctimer_set(&sink_timer, (CLOCK_SECOND/2), forward_to_sink_callback, NULL);
+        //}
         SENSORS_DEACTIVATE(button_sensor);
     }
     PROCESS_END();
 }
+
