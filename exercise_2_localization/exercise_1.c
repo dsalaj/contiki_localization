@@ -37,14 +37,14 @@ static uint8_t focus = 0;
 const int NODE_ADDR = 108;
 static uint8_t reception_counter = 0;
 // static int used_anchors[4] = {102, 106, 109, 111, 113, 115};
-static int used_anchors[4] = {108, 109, 100, 101};
-#define USED_ANCHOR_NUM 4
+static int used_anchors[8] = {108, 109, 100, 101, 110, 111, 114, 115};
+#define USED_ANCHOR_NUM 8
 
 float x=2.000f;
 #define ANCHOR_RIME_BROADCAST_CHANNEL 150
 #define ANCHOR_PHY_CHANNEL 20 // for anchors
 #define SINK_PHY_CHANNEL 25 // for unicast with sink
-#define NO_ANCHORS_LOCALIZE 20 // number of anchor packets to localize from
+#define NO_ANCHORS_LOCALIZE 50 // number of anchor packets to localize from
 static struct unicast_conn uc;
 static struct broadcast_conn broadcast;
 static uint32_t seq_num = 0;
@@ -59,7 +59,7 @@ static struct ctimer localization_timer;
 static struct ctimer sink_timer;
 static struct ctimer retransmit_timer;
 #define LOCALIZATION_TIME (CLOCK_SECOND * 20)
-#define LOWER_LIMIT_TR_POWER_LOC -15  // lowest transmission power accepted packet for localization
+#define LOWER_LIMIT_TR_POWER_LOC -10  // lowest transmission power accepted packet for localization
 
 int absolute(int value) {
     if (value < 0) {
@@ -148,43 +148,44 @@ struct anchor anchor_data[NO_ANCHORS_LOCALIZE];
 struct coords {
     int x;
     int y;
-    uint8_t unstable;
+    uint16_t dist;
+    uint8_t no_dist;
 };
 struct coords ll_coord;
 struct coords ur_coord;
 struct coords map[32] = {
-    {.unstable = 0, .x = 368, .y = 0},    // node 100
-    {.unstable = 0, .x = 170, .y = 0},    // node 101
-    {.unstable = 0, .x = 32, .y = 149},   // node 102
-    {.unstable = 0, .x = 32, .y = 300},   // node 103
-    {.unstable = 0, .x = 32, .y = 459},   // node 104
-    {.unstable = 0, .x = 32, .y = 609},   // node 105
-    {.unstable = 0, .x = 32, .y = 754},   // node 106
-    {.unstable = 0, .x = 32, .y = 865},   // node 107
-    {.unstable = 0, .x = 164, .y = 1000}, // node 108
-    {.unstable = 0, .x = 368, .y = 1000}, // node 109
-    {.unstable = 0, .x = 465, .y = 859},  // node 110
-    {.unstable = 0, .x = 465, .y = 750},  // node 111
-    {.unstable = 0, .x = 465, .y = 610},  // node 112
-    {.unstable = 0, .x = 465, .y = 462},  // node 113
-    {.unstable = 0, .x = 465, .y = 310},  // node 114
-    {.unstable = 0, .x = 465, .y = 151},  // node 115
-    {.unstable = 0, .x = 537, .y = 100},  // node 116
-    {.unstable = 0, .x = 630, .y = 510},  // node 117
-    {.unstable = 0, .x = 630, .y = 694},  // node 118
-    {.unstable = 0, .x = 47, .y = 960},   // node 119
-    {.unstable = 0, .x = 16, .y = 227},   // node 120
-    {.unstable = 0, .x = 16, .y = 385},   // node 121
-    {.unstable = 0, .x = 16, .y = 689},   // node 122
-    {.unstable = 0, .x = 16, .y = 815},   // node 123
-    {.unstable = 0, .x = 578, .y = 985},  // node 124
-    {.unstable = 0, .x = 610, .y = 694},  // node 125
-    {.unstable = 0, .x = 610, .y = 467},  // node 126
-    {.unstable = 0, .x = 408, .y = 35},   // node 127
-    {.unstable = 0, .x = 910, .y = -100}, // node 128
-    {.unstable = 0, .x = 88, .y = 0},     // node 129
-    {.unstable = 0, .x = 42, .y = 0},     // node 130
-    {.unstable = 0, .x = 22, .y = 70},    // node 131
+    {.no_dist = 0, .dist = 0, .x = 368, .y = 0},    // node 100
+    {.no_dist = 0, .dist = 0, .x = 170, .y = 0},    // node 101
+    {.no_dist = 0, .dist = 0, .x = 32, .y = 149},   // node 102
+    {.no_dist = 0, .dist = 0, .x = 32, .y = 300},   // node 103
+    {.no_dist = 0, .dist = 0, .x = 32, .y = 459},   // node 104
+    {.no_dist = 0, .dist = 0, .x = 32, .y = 609},   // node 105
+    {.no_dist = 0, .dist = 0, .x = 32, .y = 754},   // node 106
+    {.no_dist = 0, .dist = 0, .x = 32, .y = 865},   // node 107
+    {.no_dist = 0, .dist = 0, .x = 164, .y = 1000}, // node 108
+    {.no_dist = 0, .dist = 0, .x = 368, .y = 1000}, // node 109
+    {.no_dist = 0, .dist = 0, .x = 465, .y = 859},  // node 110
+    {.no_dist = 0, .dist = 0, .x = 465, .y = 750},  // node 111
+    {.no_dist = 0, .dist = 0, .x = 465, .y = 610},  // node 112
+    {.no_dist = 0, .dist = 0, .x = 465, .y = 462},  // node 113
+    {.no_dist = 0, .dist = 0, .x = 465, .y = 310},  // node 114
+    {.no_dist = 0, .dist = 0, .x = 465, .y = 151},  // node 115
+    {.no_dist = 0, .dist = 0, .x = 537, .y = 100},  // node 116
+    {.no_dist = 0, .dist = 0, .x = 630, .y = 510},  // node 117
+    {.no_dist = 0, .dist = 0, .x = 630, .y = 694},  // node 118
+    {.no_dist = 0, .dist = 0, .x = 47, .y = 960},   // node 119
+    {.no_dist = 0, .dist = 0, .x = 16, .y = 227},   // node 120
+    {.no_dist = 0, .dist = 0, .x = 16, .y = 385},   // node 121
+    {.no_dist = 0, .dist = 0, .x = 16, .y = 689},   // node 122
+    {.no_dist = 0, .dist = 0, .x = 16, .y = 815},   // node 123
+    {.no_dist = 0, .dist = 0, .x = 578, .y = 985},  // node 124
+    {.no_dist = 0, .dist = 0, .x = 610, .y = 694},  // node 125
+    {.no_dist = 0, .dist = 0, .x = 610, .y = 467},  // node 126
+    {.no_dist = 0, .dist = 0, .x = 408, .y = 35},   // node 127
+    {.no_dist = 0, .dist = 0, .x = 910, .y = -100}, // node 128
+    {.no_dist = 0, .dist = 0, .x = 88, .y = 0},     // node 129
+    {.no_dist = 0, .dist = 0, .x = 42, .y = 0},     // node 130
+    {.no_dist = 0, .dist = 0, .x = 22, .y = 70},    // node 131
 };
 
 
@@ -255,18 +256,21 @@ static void localize() {
         uint8_t anchor_counter = 0;
         for (anchor_counter = 0; anchor_counter < USED_ANCHOR_NUM; anchor_counter++){
             if (anchor_data[i].addr == used_anchors[anchor_counter]) {
-                int diff = 0;
-                if (prev_dist[anchor_counter] == 0) {
-                    prev_dist[anchor_counter] = anchor_data[i].dist; // initialize first prev distance
-                } else {
-                    diff = absolute(prev_dist[anchor_counter] - anchor_data[i].dist); // calculate difference
-                }
-                printf("Difference for node %d is %d m\n", anchor_data[i].addr, diff);
-                if (diff > 200) {
-                    printf("NEVALJA!\n");
-                    map[anchor_data[i].addr % 100].unstable = 1;
-                }
-                prev_dist[anchor_counter] = anchor_data[i].dist;
+                map[anchor_data[i].addr % 100].no_dist++;
+                map[anchor_data[i].addr % 100].dist += anchor_data[i].dist;
+                printf("node %d number %d distance sum %d\n", anchor_data[i].addr, map[anchor_data[i].addr % 100].no_dist, map[anchor_data[i].addr % 100].dist);
+                // int diff = 0;
+                // if (prev_dist[anchor_counter] == 0) {
+                //     prev_dist[anchor_counter] = anchor_data[i].dist; // initialize first prev distance
+                // } else {
+                //     diff = absolute(prev_dist[anchor_counter] - anchor_data[i].dist); // calculate difference
+                // }
+                // printf("Difference for node %d is %d m\n", anchor_data[i].addr, diff);
+                // if (diff > 200) {
+                //     printf("NEVALJA!\n");
+                //     map[anchor_data[i].addr % 100].unstable = 1;
+                // }
+                //prev_dist[anchor_counter] = anchor_data[i].dist;
             }
         }
     }
@@ -284,15 +288,14 @@ static void localize() {
     int ll_y = 0;
     int ur_x = 0;
     int ur_y = 0;
-    for (i = 0; i < NO_ANCHORS_LOCALIZE; i++){
-        if (map[anchor_data[i].addr % 100].unstable == 1) {
-            printf("skip!\n");
-            continue;
-        }
-        ll_x = map[anchor_data[i].addr % 100].x - anchor_data[i].dist;
-        ll_y = map[anchor_data[i].addr % 100].y - anchor_data[i].dist;
-        ur_x = map[anchor_data[i].addr % 100].x + anchor_data[i].dist;
-        ur_y = map[anchor_data[i].addr % 100].y + anchor_data[i].dist;
+    uint8_t anchor_counter = 0;
+    for (anchor_counter = 0; anchor_counter < USED_ANCHOR_NUM; anchor_counter++){
+        printf("LOCALIZE: node %d number %d distance sum %d\n", used_anchors[anchor_counter], map[used_anchors[anchor_counter] % 100].no_dist, map[used_anchors[anchor_counter] % 100].dist);
+        int dist = map[used_anchors[anchor_counter] % 100].dist / map[used_anchors[anchor_counter] % 100].no_dist;
+        ll_x = map[used_anchors[anchor_counter] % 100].x - dist;
+        ll_y = map[used_anchors[anchor_counter] % 100].y - dist;
+        ur_x = map[used_anchors[anchor_counter] % 100].x + dist;
+        ur_y = map[used_anchors[anchor_counter] % 100].y + dist;
         // printf("DRAW_RECT_FROM_CENTER(%d,%d,%d)\n", map[anchor_data[reception_counter].addr % 100].x, map[anchor_data[reception_counter].addr % 100].y, d_cm);
         printf("DRAW_SQUARE_DENSITY(%d,%d,%d,%d,#00ff00,none,1.0)\n", ll_x, ll_y, ur_x, ur_y);
         // printf("checking node %d LL x=%d y=%d, UR x=%d y=%d\n",anchor_data[i].addr, ll_x, ll_y, ur_x, ur_y);
@@ -316,7 +319,42 @@ static void localize() {
             // printf("ur_coord %d = %d\n", ur_coord.y, ur_y);
             ur_coord.y = ur_y;
         }
+        map[used_anchors[anchor_counter] % 100].dist = 0;
+        map[used_anchors[anchor_counter] % 100].no_dist = 0;
     }
+    // for (i = 0; i < NO_ANCHORS_LOCALIZE; i++){
+    //     // if (map[anchor_data[i].addr % 100].unstable == 1) {
+    //     //     printf("skip!\n");
+    //     //     continue;
+    //     // }
+    //     ll_x = map[anchor_data[i].addr % 100].x - anchor_data[i].dist;
+    //     ll_y = map[anchor_data[i].addr % 100].y - anchor_data[i].dist;
+    //     ur_x = map[anchor_data[i].addr % 100].x + anchor_data[i].dist;
+    //     ur_y = map[anchor_data[i].addr % 100].y + anchor_data[i].dist;
+    //     // printf("DRAW_RECT_FROM_CENTER(%d,%d,%d)\n", map[anchor_data[reception_counter].addr % 100].x, map[anchor_data[reception_counter].addr % 100].y, d_cm);
+    //     printf("DRAW_SQUARE_DENSITY(%d,%d,%d,%d,#00ff00,none,1.0)\n", ll_x, ll_y, ur_x, ur_y);
+    //     // printf("checking node %d LL x=%d y=%d, UR x=%d y=%d\n",anchor_data[i].addr, ll_x, ll_y, ur_x, ur_y);
+    //     if (ll_x > ll_coord.x){
+    //         // printf("took ll x\n");
+    //         // printf("ll_coord %d = %d\n", ll_coord.x, ll_x);
+    //         ll_coord.x = ll_x;
+    //     }
+    //     if (ll_y > ll_coord.y){
+    //         // printf("took ll y\n");
+    //         // printf("ll_coord %d = %d\n", ll_coord.y, ll_y);
+    //         ll_coord.y = ll_y;
+    //     }
+    //     if (ur_x < ur_coord.x) {
+    //         // printf("took ur x\n");
+    //         // printf("ur_coord %d = %d\n", ur_coord.x, ur_x);
+    //         ur_coord.x = ur_x;
+    //     }
+    //     if (ur_y < ur_coord.y) {
+    //         // printf("took ur y\n");
+    //         // printf("ur_coord %d = %d\n", ur_coord.y, ur_y);
+    //         ur_coord.y = ur_y;
+    //     }
+    // }
     int x = my_x();
     int y = my_y();
     printf("I am at x=%d y=%d!\n", x, y);
@@ -353,7 +391,7 @@ static void send_uc(struct unicast_conn *c, int status, int tx) {
 
 static uint8_t check_addr(int addr) {
     int i;
-    for (i = 0; i < 4; i++) {
+    for (i = 0; i < USED_ANCHOR_NUM; i++) {
         if (used_anchors[i] == addr)
             return 1;
     }
