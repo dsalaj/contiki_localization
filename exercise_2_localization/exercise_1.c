@@ -44,7 +44,7 @@ float x=2.000f;
 #define ANCHOR_RIME_BROADCAST_CHANNEL 150
 #define ANCHOR_PHY_CHANNEL 20 // for anchors
 #define SINK_PHY_CHANNEL 25 // for unicast with sink
-#define NO_ANCHORS_LOCALIZE 50 // number of anchor packets to localize from
+#define NO_ANCHORS_LOCALIZE 30 // number of anchor packets to localize from
 static struct unicast_conn uc;
 static struct broadcast_conn broadcast;
 static uint32_t seq_num = 0;
@@ -59,7 +59,7 @@ static struct ctimer localization_timer;
 static struct ctimer sink_timer;
 static struct ctimer retransmit_timer;
 #define LOCALIZATION_TIME (CLOCK_SECOND * 20)
-#define LOWER_LIMIT_TR_POWER_LOC -10  // lowest transmission power accepted packet for localization
+#define LOWER_LIMIT_TR_POWER_LOC -20  // lowest transmission power accepted packet for localization
 
 int absolute(int value) {
     if (value < 0) {
