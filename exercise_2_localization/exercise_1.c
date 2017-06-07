@@ -259,18 +259,6 @@ static void localize() {
                 map[anchor_data[i].addr % 100].no_dist++;
                 map[anchor_data[i].addr % 100].dist += anchor_data[i].dist;
                 printf("node %d number %d distance sum %d\n", anchor_data[i].addr, map[anchor_data[i].addr % 100].no_dist, map[anchor_data[i].addr % 100].dist);
-                // int diff = 0;
-                // if (prev_dist[anchor_counter] == 0) {
-                //     prev_dist[anchor_counter] = anchor_data[i].dist; // initialize first prev distance
-                // } else {
-                //     diff = absolute(prev_dist[anchor_counter] - anchor_data[i].dist); // calculate difference
-                // }
-                // printf("Difference for node %d is %d m\n", anchor_data[i].addr, diff);
-                // if (diff > 200) {
-                //     printf("NEVALJA!\n");
-                //     map[anchor_data[i].addr % 100].unstable = 1;
-                // }
-                //prev_dist[anchor_counter] = anchor_data[i].dist;
             }
         }
     }
@@ -279,20 +267,15 @@ static void localize() {
     ll_coord.y = -5000;
     ur_coord.x = 5000;
     ur_coord.y = 5000;
-    // ll_coord.x = map[anchor_data[0].addr % 100].x - anchor_data[0].dist;
-    // ll_coord.y = map[anchor_data[0].addr % 100].y - anchor_data[0].dist;
-    // ur_coord.x = map[anchor_data[0].addr % 100].x + anchor_data[0].dist;
-    // ur_coord.y = map[anchor_data[0].addr % 100].y + anchor_data[0].dist;
-    // printf("Starting LL x=%d y=%d, UR x=%d y=%d\n", ll_coord.x, ll_coord.y, ur_coord.x, ur_coord.y);
     int ll_x = 0;
     int ll_y = 0;
     int ur_x = 0;
     int ur_y = 0;
     uint8_t anchor_counter = 0;
     for (anchor_counter = 0; anchor_counter < USED_ANCHOR_NUM; anchor_counter++){
-        // printf("LOCALIZE: node %d number %d distance sum %d\n", used_anchors[anchor_counter], map[used_anchors[anchor_counter] % 100].no_dist, map[used_anchors[anchor_counter] % 100].dist);
         int dist = map[used_anchors[anchor_counter] % 100].dist / map[used_anchors[anchor_counter] % 100].no_dist;
         printf("LOCALIZE: node %d distance %d\n", used_anchors[anchor_counter], dist);
+        // ignore the far nodes because of large fluctuation in distance
         if (dist > 450) {
             continue;
         }
@@ -300,70 +283,26 @@ static void localize() {
         ll_y = map[used_anchors[anchor_counter] % 100].y - dist;
         ur_x = map[used_anchors[anchor_counter] % 100].x + dist;
         ur_y = map[used_anchors[anchor_counter] % 100].y + dist;
-        // printf("DRAW_RECT_FROM_CENTER(%d,%d,%d)\n", map[anchor_data[reception_counter].addr % 100].x, map[anchor_data[reception_counter].addr % 100].y, d_cm);
         printf("DRAW_SQUARE_DENSITY(%d,%d,%d,%d,#00ff00,none,1.0)\n", ll_x, ll_y, ur_x, ur_y);
-        // printf("checking node %d LL x=%d y=%d, UR x=%d y=%d\n",anchor_data[i].addr, ll_x, ll_y, ur_x, ur_y);
         if (ll_x > ll_coord.x){
-            // printf("took ll x\n");
-            // printf("ll_coord %d = %d\n", ll_coord.x, ll_x);
             ll_coord.x = ll_x;
         }
         if (ll_y > ll_coord.y){
-            // printf("took ll y\n");
-            // printf("ll_coord %d = %d\n", ll_coord.y, ll_y);
             ll_coord.y = ll_y;
         }
         if (ur_x < ur_coord.x) {
-            // printf("took ur x\n");
-            // printf("ur_coord %d = %d\n", ur_coord.x, ur_x);
             ur_coord.x = ur_x;
         }
         if (ur_y < ur_coord.y) {
-            // printf("took ur y\n");
-            // printf("ur_coord %d = %d\n", ur_coord.y, ur_y);
             ur_coord.y = ur_y;
         }
         map[used_anchors[anchor_counter] % 100].dist = 0;
         map[used_anchors[anchor_counter] % 100].no_dist = 0;
     }
-    // for (i = 0; i < NO_ANCHORS_LOCALIZE; i++){
-    //     // if (map[anchor_data[i].addr % 100].unstable == 1) {
-    //     //     printf("skip!\n");
-    //     //     continue;
-    //     // }
-    //     ll_x = map[anchor_data[i].addr % 100].x - anchor_data[i].dist;
-    //     ll_y = map[anchor_data[i].addr % 100].y - anchor_data[i].dist;
-    //     ur_x = map[anchor_data[i].addr % 100].x + anchor_data[i].dist;
-    //     ur_y = map[anchor_data[i].addr % 100].y + anchor_data[i].dist;
-    //     // printf("DRAW_RECT_FROM_CENTER(%d,%d,%d)\n", map[anchor_data[reception_counter].addr % 100].x, map[anchor_data[reception_counter].addr % 100].y, d_cm);
-    //     printf("DRAW_SQUARE_DENSITY(%d,%d,%d,%d,#00ff00,none,1.0)\n", ll_x, ll_y, ur_x, ur_y);
-    //     // printf("checking node %d LL x=%d y=%d, UR x=%d y=%d\n",anchor_data[i].addr, ll_x, ll_y, ur_x, ur_y);
-    //     if (ll_x > ll_coord.x){
-    //         // printf("took ll x\n");
-    //         // printf("ll_coord %d = %d\n", ll_coord.x, ll_x);
-    //         ll_coord.x = ll_x;
-    //     }
-    //     if (ll_y > ll_coord.y){
-    //         // printf("took ll y\n");
-    //         // printf("ll_coord %d = %d\n", ll_coord.y, ll_y);
-    //         ll_coord.y = ll_y;
-    //     }
-    //     if (ur_x < ur_coord.x) {
-    //         // printf("took ur x\n");
-    //         // printf("ur_coord %d = %d\n", ur_coord.x, ur_x);
-    //         ur_coord.x = ur_x;
-    //     }
-    //     if (ur_y < ur_coord.y) {
-    //         // printf("took ur y\n");
-    //         // printf("ur_coord %d = %d\n", ur_coord.y, ur_y);
-    //         ur_coord.y = ur_y;
-    //     }
-    // }
     int x = my_x();
     int y = my_y();
     printf("I am at x=%d y=%d!\n", x, y);
     printf("DRAW_SQUARE_DENSITY(%d,%d,%d,%d,#00ff00,#ff2211,0.5)\n", ll_coord.x, ll_coord.y, ur_coord.x, ur_coord.y);
-    //printf("DRAW_CIRCLE(%d,%d,%d,#aaaa00, none, 0.3)\n", x, y, my_precision());
     printf("DRAW_CIRCLE(%d,%d,%d,#aaaa00, #44ff44)\n", x, y, 20);
     forward_to_sink = 1;
     ctimer_set(&sink_timer, (CLOCK_SECOND/2), forward_to_sink_callback, NULL);
@@ -374,8 +313,6 @@ static void localize() {
 static void
 recv_uc(struct unicast_conn *c, const linkaddr_t *from)
 {
-    //printf("unicast message received from %d.%d\n", from->u8[0], from->u8[1]);
-    //printf("sink signal strength = %d, link quality = %d\n", cc2420_last_rssi, cc2420_last_correlation);
     if (from->u8[0] == 143) {
         struct unicast_packet msg;
         memcpy(&msg, packetbuf_dataptr(), sizeof(msg));
@@ -405,11 +342,7 @@ static uint8_t check_addr(int addr) {
 static void
 broadcast_recv(struct broadcast_conn *c, const linkaddr_t *from)
 {
-    //printf("broadcast message received from %d.%d\n", from->u8[0], from->u8[1]);
-    //if (focus == 0 || from->u8[0] == NODE_ADDR){
     if (check_addr(from->u8[0])){
-    // if (from->u8[0] >= 100 && from->u8[0] <= 131){
-    //if (from->u8[0] == 104 || from->u8[0] == 108 || from->u8[0] == 117 || from->u8[0] == 115){
         struct ex2_packet msg;
         memcpy(&msg, packetbuf_dataptr(), sizeof(msg));
         int dbm = pa_to_dbm(msg.tx_power);
@@ -461,10 +394,6 @@ PROCESS_THREAD(exercise_1, ev, data){
             printf("MAIN PRC: EVENT triggered localization\n");
             reception_counter = 0;
         }
-        //if(forward_to_sink) {
-        //    printf("MAIN PRC: timer triggered sink forward\n");
-        //    ctimer_set(&sink_timer, (CLOCK_SECOND/2), forward_to_sink_callback, NULL);
-        //}
         SENSORS_DEACTIVATE(button_sensor);
     }
     PROCESS_END();
