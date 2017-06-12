@@ -46,6 +46,9 @@ float x=2.000f;
 #define ANCHOR_PHY_CHANNEL 20 // for anchors
 #define SINK_PHY_CHANNEL 25 // for unicast with sink
 #define NO_ANCHORS_LOCALIZE 30 // number of anchor packets to localize from
+#define INTER_AVG_TOLERANCE 250 // distance in cm of intersection from avg. center of intersections after which it will be ignored in final approximation
+#define INTER_CCONTAIN_MIN 7 // minimum number of circles an intersection needs to be contained in to be used in localization
+#define MES_HEIGHT 140 // height from the floor (z) for moving node
 static struct unicast_conn uc;
 static struct broadcast_conn broadcast;
 static uint32_t seq_num = 0;
@@ -153,6 +156,14 @@ float distance(float Pt, float RSSI, float n, float d0) {
 
 }
 
+int32_t coord_dist(int x0, int y0, int x1, int y1) {
+    //printf("x0 %d y0 %d x1 %d y1 %d\n", x0, y0, x1, y1);
+    int32_t diffx = x0 - x1;
+    int32_t diffy = y0 - y1;
+    //printf("sqrt(%d + %d) = %d\n", (diffx * diffx), (diffy * diffy), sqrt(absolute((diffx * diffx) + (diffy * diffy))));
+    return sqrt((diffx * diffx) + (diffy * diffy));
+}
+
 struct ex2_packet {
     uint32_t sequence_number;
     uint8_t tx_power;
@@ -181,62 +192,144 @@ struct anchor {
 struct anchor anchor_data[NO_ANCHORS_LOCALIZE];
 
 struct coords {
-    int x;
-    int y;
+    int32_t x;
+    int32_t y;
     uint16_t all_dist[20];
     uint8_t no_dist;
+    uint16_t median_dist;
 };
-struct coords intersect[50];
-static uint16_t intesect_counter = 0;
-struct coords ll_coord;
-struct coords ur_coord;
+struct simple_coords {
+    int16_t x;
+    int16_t y;
+};
+struct intersect_coords {
+    int16_t x;
+    int16_t y;
+    uint8_t in_circles;
+};
+struct intersect_coords intersect[300];
+struct simple_coords my_coords;
+static uint16_t intersect_counter = 0;
+// struct simple_coords ll_coord;
+// struct simple_coords ur_coord;
 struct coords map[32] = {
-    {.no_dist = 0, .x = 368, .y = 0},    // node 100
-    {.no_dist = 0, .x = 170, .y = 0},    // node 101
-    {.no_dist = 0, .x = 32, .y = 149},   // node 102
-    {.no_dist = 0, .x = 32, .y = 300},   // node 103
-    {.no_dist = 0, .x = 32, .y = 459},   // node 104
-    {.no_dist = 0, .x = 32, .y = 609},   // node 105
-    {.no_dist = 0, .x = 32, .y = 754},   // node 106
-    {.no_dist = 0, .x = 32, .y = 865},   // node 107
-    {.no_dist = 0, .x = 164, .y = 1000}, // node 108
-    {.no_dist = 0, .x = 368, .y = 1000}, // node 109
-    {.no_dist = 0, .x = 465, .y = 859},  // node 110
-    {.no_dist = 0, .x = 465, .y = 750},  // node 111
-    {.no_dist = 0, .x = 465, .y = 610},  // node 112
-    {.no_dist = 0, .x = 465, .y = 462},  // node 113
-    {.no_dist = 0, .x = 465, .y = 310},  // node 114
-    {.no_dist = 0, .x = 465, .y = 151},  // node 115
-    {.no_dist = 0, .x = 537, .y = 100},  // node 116
-    {.no_dist = 0, .x = 630, .y = 510},  // node 117
-    {.no_dist = 0, .x = 630, .y = 694},  // node 118
-    {.no_dist = 0, .x = 47, .y = 960},   // node 119
-    {.no_dist = 0, .x = 16, .y = 227},   // node 120
-    {.no_dist = 0, .x = 16, .y = 385},   // node 121
-    {.no_dist = 0, .x = 16, .y = 689},   // node 122
-    {.no_dist = 0, .x = 16, .y = 815},   // node 123
-    {.no_dist = 0, .x = 578, .y = 985},  // node 124
-    {.no_dist = 0, .x = 610, .y = 694},  // node 125
-    {.no_dist = 0, .x = 610, .y = 467},  // node 126
-    {.no_dist = 0, .x = 408, .y = 35},   // node 127
-    {.no_dist = 0, .x = 910, .y = -100}, // node 128
-    {.no_dist = 0, .x = 88, .y = 0},     // node 129
-    {.no_dist = 0, .x = 42, .y = 0},     // node 130
-    {.no_dist = 0, .x = 22, .y = 70},    // node 131
+    {.median_dist = 0, .no_dist = 0, .x = 368, .y = 0},    // node 100
+    {.median_dist = 0, .no_dist = 0, .x = 170, .y = 0},    // node 101
+    {.median_dist = 0, .no_dist = 0, .x = 32, .y = 149},   // node 102
+    {.median_dist = 0, .no_dist = 0, .x = 32, .y = 300},   // node 103
+    {.median_dist = 0, .no_dist = 0, .x = 32, .y = 459},   // node 104
+    {.median_dist = 0, .no_dist = 0, .x = 32, .y = 609},   // node 105
+    {.median_dist = 0, .no_dist = 0, .x = 32, .y = 754},   // node 106
+    {.median_dist = 0, .no_dist = 0, .x = 32, .y = 865},   // node 107
+    {.median_dist = 0, .no_dist = 0, .x = 164, .y = 1000}, // node 108
+    {.median_dist = 0, .no_dist = 0, .x = 368, .y = 1000}, // node 109
+    {.median_dist = 0, .no_dist = 0, .x = 465, .y = 859},  // node 110
+    {.median_dist = 0, .no_dist = 0, .x = 465, .y = 750},  // node 111
+    {.median_dist = 0, .no_dist = 0, .x = 465, .y = 610},  // node 112
+    {.median_dist = 0, .no_dist = 0, .x = 465, .y = 462},  // node 113
+    {.median_dist = 0, .no_dist = 0, .x = 465, .y = 310},  // node 114
+    {.median_dist = 0, .no_dist = 0, .x = 465, .y = 151},  // node 115
+    {.median_dist = 0, .no_dist = 0, .x = 537, .y = 100},  // node 116
+    {.median_dist = 0, .no_dist = 0, .x = 630, .y = 510},  // node 117
+    {.median_dist = 0, .no_dist = 0, .x = 630, .y = 694},  // node 118
+    {.median_dist = 0, .no_dist = 0, .x = 47, .y = 960},   // node 119
+    {.median_dist = 0, .no_dist = 0, .x = 16, .y = 227},   // node 120
+    {.median_dist = 0, .no_dist = 0, .x = 16, .y = 385},   // node 121
+    {.median_dist = 0, .no_dist = 0, .x = 16, .y = 689},   // node 122
+    {.median_dist = 0, .no_dist = 0, .x = 16, .y = 815},   // node 123
+    {.median_dist = 0, .no_dist = 0, .x = 578, .y = 985},  // node 124
+    {.median_dist = 0, .no_dist = 0, .x = 610, .y = 694},  // node 125
+    {.median_dist = 0, .no_dist = 0, .x = 610, .y = 467},  // node 126
+    {.median_dist = 0, .no_dist = 0, .x = 408, .y = 35},   // node 127
+    {.median_dist = 0, .no_dist = 0, .x = 910, .y = -100}, // node 128
+    {.median_dist = 0, .no_dist = 0, .x = 88, .y = 0},     // node 129
+    {.median_dist = 0, .no_dist = 0, .x = 42, .y = 0},     // node 130
+    {.median_dist = 0, .no_dist = 0, .x = 22, .y = 70},    // node 131
 };
 
+int FindCircleCircleIntersections(
+    float cx0, float cy0, float radius0,
+    float cx1, float cy1, float radius1)
+{
+    // Find the distance between the centers.
+    float dx = cx0 - cx1;
+    float dy = cy0 - cy1;
+    double dist = sqrt(dx * dx + dy * dy);
 
-static int my_x() {
-    return (ur_coord.x + ll_coord.x)/2;
+    // See how many solutions there are.
+    if (dist > radius0 + radius1)
+    {
+        // No solutions, the circles are too far apart.
+        //intersection1 = new PointF(float.NaN, float.NaN);
+        //intersection2 = new PointF(float.NaN, float.NaN);
+        return 0;
+    }
+    else if (dist < fabsolute(radius0 - radius1))
+    {
+        // No solutions, one circle contains the other.
+        //intersection1 = new PointF(float.NaN, float.NaN);
+        //intersection2 = new PointF(float.NaN, float.NaN);
+        return 0;
+    }
+    else if ((dist == 0) && (radius0 == radius1))
+    {
+        // No solutions, the circles coincide.
+        //intersection1 = new PointF(float.NaN, float.NaN);
+        //intersection2 = new PointF(float.NaN, float.NaN);
+        return 0;
+    }
+    else
+    {
+        // Find a and h.
+        double a = (radius0 * radius0 -
+            radius1 * radius1 + dist * dist) / (2 * dist);
+        double h = sqrt(radius0 * radius0 - a * a);
+
+        // Find P2.
+        double cx2 = cx0 + a * (cx1 - cx0) / dist;
+        double cy2 = cy0 + a * (cy1 - cy0) / dist;
+
+        // Get the points P3.
+        int x = (int)(cx2 + h * (cy1 - cy0) / dist);
+        int y = (int)(cy2 - h * (cx1 - cx0) / dist);
+        //printf("x = %d y = %d\n", x, y);
+        if (x > 900 || x < -900 || y > 900 || y < -900) {
+            //printf("Skip inters\n");
+            return 0;
+        }
+        intersect[intersect_counter].x = x;
+        intersect[intersect_counter].y = y;
+        //printf("Saved Intersection %d %d\n", intersect[intersect_counter].x, intersect[intersect_counter].y);
+        intersect_counter++;
+        if (dist == radius0 + radius1) return 1;
+        x = (int)(cx2 - h * (cy1 - cy0) / dist);
+        y = (int)(cy2 + h * (cx1 - cx0) / dist);
+        //printf("x = %d y = %d\n", x, y);
+        if (x > 900 || x < -900 || y > 900 || y < -900) {
+            //printf("Skip inters\n");
+            return 0;
+        }
+        intersect[intersect_counter].x = x;
+        intersect[intersect_counter].y = y;
+        //printf("Saved Intersection %d %d\n", intersect[intersect_counter].x, intersect[intersect_counter].y);
+        intersect_counter++;
+        // // See if we have 1 or 2 solutions.
+        // if (dist == radius0 + radius1) return 1;
+        return 2;
+    }
 }
-static int my_y() {
-    return (ur_coord.y + ll_coord.y)/2;
-}
-static int my_precision() {
-    int x_prec = absolute(absolute(ur_coord.x) - absolute(ll_coord.x));
-    int y_prec = absolute(absolute(ur_coord.y) - absolute(ll_coord.y));
-    return (x_prec + y_prec)/2;
-}
+
+//static int my_x() {
+//    return (ur_coord.x + ll_coord.x)/2;
+//}
+//static int my_y() {
+//    return (ur_coord.y + ll_coord.y)/2;
+//}
+//static int my_precision() {
+//    int x_prec = absolute(absolute(ur_coord.x) - absolute(ll_coord.x));
+//    int y_prec = absolute(absolute(ur_coord.y) - absolute(ll_coord.y));
+//    return (x_prec + y_prec)/2;
+//}
 
 static void retransmit(void *ptr);
 static void retransmit(void *ptr){
@@ -264,8 +357,8 @@ static void forward_to_sink_callback(void *ptr){
     read_sensors();
 
     p.sequence_number = seq_num;
-    p.x = my_x();
-    p.y = my_y();
+    p.x = my_coords.x;
+    p.y = my_coords.y;
     p.temperature = T; //T;
     p.humidity = RH; // RH;
     p.par = par; //par;
@@ -285,9 +378,8 @@ static void forward_to_sink_callback(void *ptr){
 }
 static void localize() {
     printf("STARTDRAW\n"); // DRAW Start Statement.
-    struct anchor unique_anchor_data[USED_ANCHOR_NUM];
+    // collect all distances in the map data-structure for easier processing later
     int i = 0;
-    uint8_t unstable[USED_ANCHOR_NUM] = {0, 0, 0, 0};
     for (i = 0; i < NO_ANCHORS_LOCALIZE; i++){
         uint8_t anchor_counter = 0;
         for (anchor_counter = 0; anchor_counter < USED_ANCHOR_NUM; anchor_counter++){
@@ -299,47 +391,140 @@ static void localize() {
         }
     }
 
-    ll_coord.x = -5000;
-    ll_coord.y = -5000;
-    ur_coord.x = 5000;
-    ur_coord.y = 5000;
-    int ll_x = 0;
-    int ll_y = 0;
-    int ur_x = 0;
-    int ur_y = 0;
+    // // MINMAX algorithm with median
+    // ll_coord.x = -5000;
+    // ll_coord.y = -5000;
+    // ur_coord.x = 5000;
+    // ur_coord.y = 5000;
+    // int ll_x = 0;
+    // int ll_y = 0;
+    // int ur_x = 0;
+    // int ur_y = 0;
+    // uint8_t anchor_counter = 0;
+    // for (anchor_counter = 0; anchor_counter < USED_ANCHOR_NUM; anchor_counter++){
+    //     int dist = (int)(median(map[used_anchors[anchor_counter] % 100].no_dist, map[used_anchors[anchor_counter] % 100].all_dist));
+    //     // int dist = map[used_anchors[anchor_counter] % 100].dist / map[used_anchors[anchor_counter] % 100].no_dist;
+    //     printf("LOCALIZE: node %d distance %d\n", used_anchors[anchor_counter], dist);
+    //     // ignore the far nodes because of large fluctuation in distance
+    //     if (dist > 450) {
+    //         continue;
+    //     }
+    //     ll_x = map[used_anchors[anchor_counter] % 100].x - dist;
+    //     ll_y = map[used_anchors[anchor_counter] % 100].y - dist;
+    //     ur_x = map[used_anchors[anchor_counter] % 100].x + dist;
+    //     ur_y = map[used_anchors[anchor_counter] % 100].y + dist;
+    //     printf("DRAW_SQUARE_DENSITY(%d,%d,%d,%d,#00ff00,none,1.0)\n", ll_x, ll_y, ur_x, ur_y);
+    //     if (ll_x > ll_coord.x){
+    //         ll_coord.x = ll_x;
+    //     }
+    //     if (ll_y > ll_coord.y){
+    //         ll_coord.y = ll_y;
+    //     }
+    //     if (ur_x < ur_coord.x) {
+    //         ur_coord.x = ur_x;
+    //     }
+    //     if (ur_y < ur_coord.y) {
+    //         ur_coord.y = ur_y;
+    //     }
+    //     //map[used_anchors[anchor_counter] % 100].dist = 0;
+    //     map[used_anchors[anchor_counter] % 100].no_dist = 0;
+    // }
+    // int x = my_x();
+    // int y = my_y();
+    // printf("DRAW_SQUARE_DENSITY(%d,%d,%d,%d,#00ff00,#ff2211,0.5)\n", ll_coord.x, ll_coord.y, ur_coord.x, ur_coord.y);
+    // printf("DRAW_CIRCLE(%d,%d,%d,#aaaa00, #44ff44)\n", x, y, 20);
+
+    // GEO-N algorithm with median and only real intersections
     uint8_t anchor_counter = 0;
     for (anchor_counter = 0; anchor_counter < USED_ANCHOR_NUM; anchor_counter++){
-        int dist = (int)(median(map[used_anchors[anchor_counter] % 100].no_dist, map[used_anchors[anchor_counter] % 100].all_dist));
-        // int dist = map[used_anchors[anchor_counter] % 100].dist / map[used_anchors[anchor_counter] % 100].no_dist;
-        printf("LOCALIZE: node %d distance %d\n", used_anchors[anchor_counter], dist);
-        // ignore the far nodes because of large fluctuation in distance
-        if (dist > 450) {
-            continue;
-        }
-        ll_x = map[used_anchors[anchor_counter] % 100].x - dist;
-        ll_y = map[used_anchors[anchor_counter] % 100].y - dist;
-        ur_x = map[used_anchors[anchor_counter] % 100].x + dist;
-        ur_y = map[used_anchors[anchor_counter] % 100].y + dist;
-        printf("DRAW_SQUARE_DENSITY(%d,%d,%d,%d,#00ff00,none,1.0)\n", ll_x, ll_y, ur_x, ur_y);
-        if (ll_x > ll_coord.x){
-            ll_coord.x = ll_x;
-        }
-        if (ll_y > ll_coord.y){
-            ll_coord.y = ll_y;
-        }
-        if (ur_x < ur_coord.x) {
-            ur_coord.x = ur_x;
-        }
-        if (ur_y < ur_coord.y) {
-            ur_coord.y = ur_y;
-        }
-        //map[used_anchors[anchor_counter] % 100].dist = 0;
-        map[used_anchors[anchor_counter] % 100].no_dist = 0;
+        int mes_dist = (int)(median(map[used_anchors[anchor_counter] % 100].no_dist, map[used_anchors[anchor_counter] % 100].all_dist));
+        // calculate the distance as median of measured distance with consideration of height of node when measuring
+        //int h = MES_HEIGHT;
+        //int true_dist = sqrt((mes_dist*mes_dist) - (h*h));
+        int true_dist = mes_dist;
+        map[used_anchors[anchor_counter] % 100].median_dist = true_dist;
+        printf("DRAW_CIRCLE(%ld,%ld,%d,#00ff00, none)\n", map[used_anchors[anchor_counter] % 100].x, map[used_anchors[anchor_counter] % 100].y, true_dist);
     }
-    int x = my_x();
-    int y = my_y();
-    printf("I am at x=%d y=%d!\n", x, y);
-    printf("DRAW_SQUARE_DENSITY(%d,%d,%d,%d,#00ff00,#ff2211,0.5)\n", ll_coord.x, ll_coord.y, ur_coord.x, ur_coord.y);
+    uint8_t anchor_counter1 = 0;
+    for (anchor_counter = 0; anchor_counter < USED_ANCHOR_NUM; anchor_counter++){
+        for (anchor_counter1 = 0; anchor_counter1 < USED_ANCHOR_NUM; anchor_counter1++){
+            int cx0 = map[used_anchors[anchor_counter] % 100].x;
+            int cy0 = map[used_anchors[anchor_counter] % 100].y;
+            int radius0 = map[used_anchors[anchor_counter] % 100].median_dist;
+            int cx1 = map[used_anchors[anchor_counter1] % 100].x;
+            int cy1 = map[used_anchors[anchor_counter1] % 100].y;
+            int radius1 = map[used_anchors[anchor_counter1] % 100].median_dist;
+            FindCircleCircleIntersections((float)(cx0), (float)(cy0),(float)(radius0),(float)(cx1),(float)(cy1),(float)(radius1));
+        }
+    }
+    // calculate average coordinates of intersections
+    uint8_t i_counter = 0;
+    int32_t i_x = 0;
+    int32_t i_y = 0;
+    for (i_counter = 0; i_counter < intersect_counter; i_counter++){
+        i_x = i_x + intersect[i_counter].x;
+        i_y = i_y + intersect[i_counter].y;
+    }
+    int x = i_x / intersect_counter;
+    int y = i_y / intersect_counter;
+    printf("FIRST AVERAGE x = %d, y = %d\n", x, y);
+    printf("DRAW_CIRCLE(%d,%d,%d,#ffa000, #ff50a0)\n", x, y, 25);
+    // calculate in how many circles is each intersection
+    i_counter = 0;
+    i_x = 0;
+    i_y = 0;
+    uint8_t count_use = 0;
+    for (i_counter = 0; i_counter < intersect_counter; i_counter++){
+        intersect[i_counter].in_circles = 0;
+        int target_x = intersect[i_counter].x;
+        int target_y = intersect[i_counter].y;
+        uint8_t anchor_counter = 0;
+        for (anchor_counter = 0; anchor_counter < USED_ANCHOR_NUM; anchor_counter++){
+            int dist = coord_dist(target_x, target_y, map[used_anchors[anchor_counter] % 100].x, map[used_anchors[anchor_counter] % 100].y);
+            //printf("comapre dist of inter and node = %d to the node circle radius = %d\n", dist, map[used_anchors[anchor_counter] % 100].median_dist);
+            if (dist < map[used_anchors[anchor_counter] % 100].median_dist) {
+                intersect[i_counter].in_circles++;
+            }
+        }
+        if (intersect[i_counter].in_circles >= INTER_CCONTAIN_MIN) {
+            count_use++;
+            printf("DRAW_CIRCLE(%d,%d,%d,#00ff00, #00ff00)\n", intersect[i_counter].x, intersect[i_counter].y, 8);
+            i_x = i_x + intersect[i_counter].x;
+            i_y = i_y + intersect[i_counter].y;
+        } else {
+            printf("DRAW_CIRCLE(%d,%d,%d,#ff0000, #ff0000)\n", target_x, target_y, 8);
+        }
+        printf("DRAW_TEXT_NEXT_TO_POINT(%d,%d,%d)\n", target_x, target_y, intersect[i_counter].in_circles);
+    }
+    x = i_x / count_use;
+    y = i_y / count_use;
+
+    // now calculate the same again but skip the far away intersections from avg. center
+    //i_x = 0;
+    //i_y = 0;
+    //uint8_t count_use = 0;
+    //for (i_counter = 0; i_counter < intersect_counter; i_counter++){
+    //    int xdiff = absolute(intersect[i_counter].x - x);
+    //    int ydiff = absolute(intersect[i_counter].y - y);
+    //    if (xdiff < INTER_AVG_TOLERANCE && ydiff < INTER_AVG_TOLERANCE) {
+    //        i_x = i_x + intersect[i_counter].x;
+    //        i_y = i_y + intersect[i_counter].y;
+    //        printf("TAKING due to inter tolerance!\n");
+    //        printf("DRAW_CIRCLE(%d,%d,%d,#00ff00, #00ff00)\n", intersect[i_counter].x, intersect[i_counter].y, 8);
+    //        count_use++;
+    //    } else {
+    //        printf("skipping due to inter tolerance!\n");
+    //        printf("DRAW_CIRCLE(%d,%d,%d,#ff0000, #ff0000)\n", intersect[i_counter].x, intersect[i_counter].y, 8);
+    //    }
+    //}
+    //printf("Going to use %d intersections\n", count_use);
+    //x = i_x / count_use;
+    //y = i_y / count_use;
+
+    intersect_counter = 0;
+    my_coords.x = x;
+    my_coords.y = y;
+    printf("I am at x=%d y=%d!\n", my_coords.x, my_coords.y);
     printf("DRAW_CIRCLE(%d,%d,%d,#aaaa00, #44ff44)\n", x, y, 20);
     forward_to_sink = 1;
     ctimer_set(&sink_timer, (CLOCK_SECOND/2), forward_to_sink_callback, NULL);
@@ -390,7 +575,7 @@ broadcast_recv(struct broadcast_conn *c, const linkaddr_t *from)
             if (reception_counter < NO_ANCHORS_LOCALIZE){
                 uint16_t d_cm = (uint16_t)(d * 100);
                 //printf("Distance from node %d = %ld.%03d m\n", from->u8[0], (long) d, (unsigned) ((d - floor(d))*1000));
-                printf("Distance from node %d = %d cm\n", from->u8[0], d_cm);
+                //printf("Distance from node %d = %d cm\n", from->u8[0], d_cm);
                 anchor_data[reception_counter].addr = from->u8[0];
                 anchor_data[reception_counter].dist = d_cm; // convert meters to centimeters
                 reception_counter++;
@@ -422,6 +607,7 @@ PROCESS_THREAD(exercise_3, ev, data){
     static const struct unicast_callbacks unicast_callbacks = {recv_uc, send_uc};
     unicast_open(&uc, 181, &unicast_callbacks);
     ctimer_set(&localization_timer, LOCALIZATION_TIME, reset_reception_counter, NULL);
+    watchdog_stop();
 
     // wait for button event
     while(1) {

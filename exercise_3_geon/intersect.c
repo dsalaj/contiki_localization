@@ -1,13 +1,12 @@
 // Find the points where the two circles intersect.
 int FindCircleCircleIntersections(
     float cx0, float cy0, float radius0,
-    float cx1, float cy1, float radius1,
-    out PointF intersection1, out PointF intersection2)
+    float cx1, float cy1, float radius1)
 {
     // Find the distance between the centers.
     float dx = cx0 - cx1;
     float dy = cy0 - cy1;
-    double dist = Math.Sqrt(dx * dx + dy * dy);
+    double dist = sqrt(dx * dx + dy * dy);
 
     // See how many solutions there are.
     if (dist > radius0 + radius1)
