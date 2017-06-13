@@ -47,7 +47,7 @@ float x=2.000f;
 #define SINK_PHY_CHANNEL 25 // for unicast with sink
 #define NO_ANCHORS_LOCALIZE 30 // number of anchor packets to localize from
 #define INTER_AVG_TOLERANCE 250 // distance in cm of intersection from avg. center of intersections after which it will be ignored in final approximation
-#define INTER_CCONTAIN_MIN 7 // minimum number of circles an intersection needs to be contained in to be used in localization
+#define INTER_CCONTAIN_MIN 5 // minimum number of circles an intersection needs to be contained in to be used in localization
 #define MES_HEIGHT 140 // height from the floor (z) for moving node
 static struct unicast_conn uc;
 static struct broadcast_conn broadcast;
@@ -161,7 +161,7 @@ int32_t coord_dist(int x0, int y0, int x1, int y1) {
     int32_t diffx = x0 - x1;
     int32_t diffy = y0 - y1;
     //printf("sqrt(%d + %d) = %d\n", (diffx * diffx), (diffy * diffy), sqrt(absolute((diffx * diffx) + (diffy * diffy))));
-    return sqrt((diffx * diffx) + (diffy * diffy));
+    return (int32_t)(sqrt((float)((diffx * diffx) + (diffy * diffy))));
 }
 
 struct ex2_packet {
@@ -196,7 +196,7 @@ struct coords {
     int32_t y;
     uint16_t all_dist[20];
     uint8_t no_dist;
-    uint16_t median_dist;
+    uint32_t median_dist;
 };
 struct simple_coords {
     int16_t x;
@@ -437,11 +437,17 @@ static void localize() {
     // GEO-N algorithm with median and only real intersections
     uint8_t anchor_counter = 0;
     for (anchor_counter = 0; anchor_counter < USED_ANCHOR_NUM; anchor_counter++){
-        int mes_dist = (int)(median(map[used_anchors[anchor_counter] % 100].no_dist, map[used_anchors[anchor_counter] % 100].all_dist));
+        int32_t mes_dist = (int32_t)(median(map[used_anchors[anchor_counter] % 100].no_dist, map[used_anchors[anchor_counter] % 100].all_dist));
         // calculate the distance as median of measured distance with consideration of height of node when measuring
-        //int h = MES_HEIGHT;
-        //int true_dist = sqrt((mes_dist*mes_dist) - (h*h));
-        int true_dist = mes_dist;
+        int32_t h = MES_HEIGHT;
+        int32_t x = (mes_dist*mes_dist) - (h*h);
+        int32_t true_dist = 0;
+        // clip to minimal distance of 20cm
+        if (x < 20) {
+            true_dist = 20;
+        } else {
+            true_dist = (int32_t)(sqrt((float)x));
+        }
         map[used_anchors[anchor_counter] % 100].median_dist = true_dist;
         printf("DRAW_CIRCLE(%ld,%ld,%d,#00ff00, none)\n", map[used_anchors[anchor_counter] % 100].x, map[used_anchors[anchor_counter] % 100].y, true_dist);
     }
@@ -467,8 +473,9 @@ static void localize() {
     }
     int x = i_x / intersect_counter;
     int y = i_y / intersect_counter;
-    printf("FIRST AVERAGE x = %d, y = %d\n", x, y);
+    //printf("INTERSECTION AVERAGE x = %d, y = %d\n", x, y);
     printf("DRAW_CIRCLE(%d,%d,%d,#ffa000, #ff50a0)\n", x, y, 25);
+    printf("DRAW_TEXT_NEXT_TO_POINT(%d,%d,AVG.INTER.)\n", x, y);
     // calculate in how many circles is each intersection
     i_counter = 0;
     i_x = 0;
@@ -526,6 +533,7 @@ static void localize() {
     my_coords.y = y;
     printf("I am at x=%d y=%d!\n", my_coords.x, my_coords.y);
     printf("DRAW_CIRCLE(%d,%d,%d,#aaaa00, #44ff44)\n", x, y, 20);
+    printf("DRAW_TEXT_NEXT_TO_POINT(%d,%d,FIN.LOC.)\n", x, y);
     forward_to_sink = 1;
     ctimer_set(&sink_timer, (CLOCK_SECOND/2), forward_to_sink_callback, NULL);
 }
@@ -560,6 +568,14 @@ static uint8_t check_addr(int addr) {
     }
     return 0;
 }
+static uint8_t check_addr_edge(int addr) {
+    int i;
+    for (i = 0; i < 4; i++) {
+        if (used_anchors[i] == addr)
+            return 1;
+    }
+    return 0;
+}
 // BROADCAST RECEIVE
 static void
 broadcast_recv(struct broadcast_conn *c, const linkaddr_t *from)
@@ -570,7 +586,13 @@ broadcast_recv(struct broadcast_conn *c, const linkaddr_t *from)
         int dbm = pa_to_dbm(msg.tx_power);
         //printf("Packet from %d.%d; Sequence number = %ld; Power = %d; RSSI = %d\n", from->u8[0], from->u8[1], msg.sequence_number, dbm, cc2420_last_rssi);
         if (dbm >= LOWER_LIMIT_TR_POWER_LOC) {
-            float d = distance((float)dbm, (float)cc2420_last_rssi, 4.0f, 2.0f);
+            int addr_check = from->u8[0];
+            float d = 0;
+            if (check_addr_edge(addr_check)) {
+                d = distance((float)dbm, (float)cc2420_last_rssi, 3.0f, 2.0f);
+            } else {
+                d = distance((float)dbm, (float)cc2420_last_rssi, 4.0f, 2.0f);
+            }
             //printf("Distance = %ld.%03d m\n", (long) d, (unsigned) ((d - floor(d))*1000));
             if (reception_counter < NO_ANCHORS_LOCALIZE){
                 uint16_t d_cm = (uint16_t)(d * 100);
