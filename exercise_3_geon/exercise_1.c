@@ -46,8 +46,8 @@ float x=2.000f;
 #define ANCHOR_PHY_CHANNEL 20 // for anchors
 #define SINK_PHY_CHANNEL 25 // for unicast with sink
 #define NO_ANCHORS_LOCALIZE 30 // number of anchor packets to localize from
-#define INTER_AVG_TOLERANCE 250 // distance in cm of intersection from avg. center of intersections after which it will be ignored in final approximation
-#define INTER_CCONTAIN_MIN 5 // minimum number of circles an intersection needs to be contained in to be used in localization
+#define INTER_AVG_TOLERANCE 200 // distance in cm of intersection from avg. center of intersections after which it will be ignored in final approximation
+#define INTER_CCONTAIN_MIN 4 // minimum number of circles an intersection needs to be contained in to be used in localization
 #define MES_HEIGHT 140 // height from the floor (z) for moving node
 static struct unicast_conn uc;
 static struct broadcast_conn broadcast;
@@ -207,7 +207,7 @@ struct intersect_coords {
     int16_t y;
     uint8_t in_circles;
 };
-struct intersect_coords intersect[300];
+struct intersect_coords intersect[600];
 struct simple_coords my_coords;
 static uint16_t intersect_counter = 0;
 // struct simple_coords ll_coord;
@@ -260,22 +260,33 @@ int FindCircleCircleIntersections(
     if (dist > radius0 + radius1)
     {
         // No solutions, the circles are too far apart.
-        //intersection1 = new PointF(float.NaN, float.NaN);
-        //intersection2 = new PointF(float.NaN, float.NaN);
+        intersect[intersect_counter].x = (int16_t)((cx0 + cx1) / 2);
+        intersect[intersect_counter].y = (int16_t)((cy0 + cy1) / 2);
+        printf("DRAW_CIRCLE(%d,%d,%d,#0000ff, #ff00ff)\n", intersect[intersect_counter].x, intersect[intersect_counter].y, 10);
+        intersect_counter++;
         return 0;
     }
     else if (dist < fabsolute(radius0 - radius1))
     {
         // No solutions, one circle contains the other.
-        //intersection1 = new PointF(float.NaN, float.NaN);
-        //intersection2 = new PointF(float.NaN, float.NaN);
+        // take the center of the smaller one
+        if (radius0 < radius1) {
+            intersect[intersect_counter].x = (int16_t)(cx0);
+            intersect[intersect_counter].y = (int16_t)(cy0);
+        } else {
+            intersect[intersect_counter].x = (int16_t)(cx1);
+            intersect[intersect_counter].y = (int16_t)(cy1);
+        }
+        printf("DRAW_CIRCLE(%d,%d,%d,#0000ff, #ff00ff)\n", intersect[intersect_counter].x, intersect[intersect_counter].y, 10);
+        intersect_counter++;
         return 0;
     }
     else if ((dist == 0) && (radius0 == radius1))
     {
         // No solutions, the circles coincide.
-        //intersection1 = new PointF(float.NaN, float.NaN);
-        //intersection2 = new PointF(float.NaN, float.NaN);
+        //intersect[intersect_counter].x = (int16_t)((cx0 + cx1) / 2);
+        //intersect[intersect_counter].y = (int16_t)((cy0 + cy1) / 2);
+        //intersect_counter++;
         return 0;
     }
     else
@@ -482,6 +493,12 @@ static void localize() {
     i_y = 0;
     uint8_t count_use = 0;
     for (i_counter = 0; i_counter < intersect_counter; i_counter++){
+        int xdiff = absolute(intersect[i_counter].x - x);
+        int ydiff = absolute(intersect[i_counter].y - y);
+        uint8_t not_too_off = 0;
+        if (xdiff < INTER_AVG_TOLERANCE && ydiff < INTER_AVG_TOLERANCE) {
+            not_too_off = 1;
+        }
         intersect[i_counter].in_circles = 0;
         int target_x = intersect[i_counter].x;
         int target_y = intersect[i_counter].y;
@@ -493,11 +510,28 @@ static void localize() {
                 intersect[i_counter].in_circles++;
             }
         }
-        if (intersect[i_counter].in_circles >= INTER_CCONTAIN_MIN) {
+        int16_t ccontain_diff = intersect[i_counter].in_circles - INTER_CCONTAIN_MIN;
+        if (ccontain_diff >= 0) {
             count_use++;
             printf("DRAW_CIRCLE(%d,%d,%d,#00ff00, #00ff00)\n", intersect[i_counter].x, intersect[i_counter].y, 8);
             i_x = i_x + intersect[i_counter].x;
             i_y = i_y + intersect[i_counter].y;
+            // triple the importance of the intersections close to avg.
+            if (not_too_off) {
+                count_use++;
+                i_x = i_x + intersect[i_counter].x;
+                i_y = i_y + intersect[i_counter].y;
+                count_use++;
+                i_x = i_x + intersect[i_counter].x;
+                i_y = i_y + intersect[i_counter].y;
+            }
+            // multiple the importance of the intersections contained in a lot of circles
+            uint8_t i = 0;
+            for (i = 0; i < ccontain_diff; i++) {
+                count_use++;
+                i_x = i_x + intersect[i_counter].x;
+                i_y = i_y + intersect[i_counter].y;
+            }
         } else {
             printf("DRAW_CIRCLE(%d,%d,%d,#ff0000, #ff0000)\n", target_x, target_y, 8);
         }
