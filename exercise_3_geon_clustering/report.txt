@@ -1,0 +1,31 @@
+# Implement a more advanced localization algorithm.
+1. Which localization algorithm did you select and how does it work? Please explain.
+aaaadsf33 92h283 98ufe h2feuwhieuhfusthlkcwalu lkhfwaku hfa huwaeut hakuwhf kuaw kw hekuafhw kuehfkuawhef kuahwefku hakuwhf
+In this exercise I expanded the my min-max implementation with median calculation for distances per node. This improved the
+performance of the algorithm slightly by not considering the values of outliers.
+
+In addition to that I also implemented the Geo-N algorithm with multitude of additional heuristics to improve the accuracy.
+It is able to achieve performances somewhat similar to min-max algorithm but with more computation.
+
+
+2. How does your algorithm perform? What did you do to improve its performance? What are the main
+problems that you have faced?
+
+Plain Geo-N algorithm with calculation of average coordinate of all intersections worked ok but with no significant accuracy
+gain in comparison to min-max. To improve the performance I implemented two heuristics. First I calculate for every intersection
+in how many circles is it contained. Then I filter if that number is too low. For calculating my coordinates I give more weight
+to nodes that are contained in many circles proportionately, and also the nodes that are closer to the average of all intersections.
+
+3. How quickly does your algorithm react to your movements? Please explain.
+
+It reacts as fast as the old min-max algorithm since I localize from scratch after a button press or 20s timer.
+
+# Implement a more advanced localization algorithm.
+1. How much time do your algorithms take in average to compute your position? Which algorithm is
+more efficient? Please explain.
+
+These are the timings for one localization calculation using different algorithms:
+Final Min-Max =
+Simple Geo-N =
+Final Geo-N =
+
