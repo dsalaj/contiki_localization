@@ -32,6 +32,16 @@
 PROCESS(exercise_3, "Exercise 3");
 AUTOSTART_PROCESSES(&exercise_3);
 
+// Helper function
+long my_fractional_part(float x){
+    if(x>=0.0f) {
+        return (long) ((x - (long) x)*1000);
+    }
+    else{
+        return (long) 0 - ((x - (long) x)*1000);
+    }
+}
+
 // Global variables
 static linkaddr_t addr = {143, 0}; // sink address
 static uint8_t focus = 0;
@@ -194,7 +204,7 @@ struct anchor anchor_data[NO_ANCHORS_LOCALIZE];
 struct coords {
     int32_t x;
     int32_t y;
-    uint16_t all_dist[20];
+    uint16_t all_dist[USED_ANCHOR_NUM];
     uint8_t no_dist;
     uint32_t median_dist;
 };
@@ -207,7 +217,7 @@ struct intersect_coords {
     int16_t y;
     uint8_t in_circles;
 };
-struct intersect_coords intersect[600];
+struct intersect_coords intersect[200];
 struct simple_coords my_coords;
 static uint16_t intersect_counter = 0;
 // struct simple_coords ll_coord;
@@ -402,6 +412,9 @@ static void localize() {
         }
     }
 
+    rtimer_clock_t now;
+    now = RTIMER_NOW();
+
     // // MINMAX algorithm with median
     // ll_coord.x = -5000;
     // ll_coord.y = -5000;
@@ -445,7 +458,8 @@ static void localize() {
     // printf("DRAW_SQUARE_DENSITY(%d,%d,%d,%d,#00ff00,#ff2211,0.5)\n", ll_coord.x, ll_coord.y, ur_coord.x, ur_coord.y);
     // printf("DRAW_CIRCLE(%d,%d,%d,#aaaa00, #44ff44)\n", x, y, 20);
 
-    // GEO-N algorithm with median and only real intersections
+    // GEO-N algorithm
+    // calculate pythagorean distance to every anchor and clip bottom to 20cm
     uint8_t anchor_counter = 0;
     for (anchor_counter = 0; anchor_counter < USED_ANCHOR_NUM; anchor_counter++){
         int32_t mes_dist = (int32_t)(median(map[used_anchors[anchor_counter] % 100].no_dist, map[used_anchors[anchor_counter] % 100].all_dist));
@@ -462,6 +476,7 @@ static void localize() {
         map[used_anchors[anchor_counter] % 100].median_dist = true_dist;
         printf("DRAW_CIRCLE(%ld,%ld,%d,#00ff00, none)\n", map[used_anchors[anchor_counter] % 100].x, map[used_anchors[anchor_counter] % 100].y, true_dist);
     }
+    // calculate intersections of all circles from anchors
     uint8_t anchor_counter1 = 0;
     for (anchor_counter = 0; anchor_counter < USED_ANCHOR_NUM; anchor_counter++){
         for (anchor_counter1 = 0; anchor_counter1 < USED_ANCHOR_NUM; anchor_counter1++){
@@ -491,7 +506,8 @@ static void localize() {
     i_counter = 0;
     i_x = 0;
     i_y = 0;
-    uint8_t count_use = 0;
+    uint16_t count_use = 0;
+    int16_t ccontain_all[intersect_counter];
     for (i_counter = 0; i_counter < intersect_counter; i_counter++){
         int xdiff = absolute(intersect[i_counter].x - x);
         int ydiff = absolute(intersect[i_counter].y - y);
@@ -510,27 +526,23 @@ static void localize() {
                 intersect[i_counter].in_circles++;
             }
         }
-        int16_t ccontain_diff = intersect[i_counter].in_circles - INTER_CCONTAIN_MIN;
+        ccontain_all[i_counter] = intersect[i_counter].in_circles;
+    }
+    int16_t ccontain_median = median(intersect_counter, ccontain_all);
+    for (i_counter = 0; i_counter < intersect_counter; i_counter++){
+        int target_x = intersect[i_counter].x;
+        int target_y = intersect[i_counter].y;
+        int16_t ccontain_diff = intersect[i_counter].in_circles - ccontain_median;
         if (ccontain_diff >= 0) {
-            count_use++;
             printf("DRAW_CIRCLE(%d,%d,%d,#00ff00, #00ff00)\n", intersect[i_counter].x, intersect[i_counter].y, 8);
             i_x = i_x + intersect[i_counter].x;
             i_y = i_y + intersect[i_counter].y;
-            // triple the importance of the intersections close to avg.
-            if (not_too_off) {
-                count_use++;
-                i_x = i_x + intersect[i_counter].x;
-                i_y = i_y + intersect[i_counter].y;
-                count_use++;
-                i_x = i_x + intersect[i_counter].x;
-                i_y = i_y + intersect[i_counter].y;
-            }
+            count_use++;
             // multiple the importance of the intersections contained in a lot of circles
-            uint8_t i = 0;
-            for (i = 0; i < ccontain_diff; i++) {
-                count_use++;
+            if (ccontain_diff >= 2) {
                 i_x = i_x + intersect[i_counter].x;
                 i_y = i_y + intersect[i_counter].y;
+                count_use++;
             }
         } else {
             printf("DRAW_CIRCLE(%d,%d,%d,#ff0000, #ff0000)\n", target_x, target_y, 8);
@@ -539,28 +551,10 @@ static void localize() {
     }
     x = i_x / count_use;
     y = i_y / count_use;
-
-    // now calculate the same again but skip the far away intersections from avg. center
-    //i_x = 0;
-    //i_y = 0;
-    //uint8_t count_use = 0;
-    //for (i_counter = 0; i_counter < intersect_counter; i_counter++){
-    //    int xdiff = absolute(intersect[i_counter].x - x);
-    //    int ydiff = absolute(intersect[i_counter].y - y);
-    //    if (xdiff < INTER_AVG_TOLERANCE && ydiff < INTER_AVG_TOLERANCE) {
-    //        i_x = i_x + intersect[i_counter].x;
-    //        i_y = i_y + intersect[i_counter].y;
-    //        printf("TAKING due to inter tolerance!\n");
-    //        printf("DRAW_CIRCLE(%d,%d,%d,#00ff00, #00ff00)\n", intersect[i_counter].x, intersect[i_counter].y, 8);
-    //        count_use++;
-    //    } else {
-    //        printf("skipping due to inter tolerance!\n");
-    //        printf("DRAW_CIRCLE(%d,%d,%d,#ff0000, #ff0000)\n", intersect[i_counter].x, intersect[i_counter].y, 8);
-    //    }
-    //}
-    //printf("Going to use %d intersections\n", count_use);
-    //x = i_x / count_use;
-    //y = i_y / count_use;
+    now = (RTIMER_NOW() - now);
+    printf("ALGORITHM DURATION ============================== %u/%u\n", now, RTIMER_SECOND);
+    float t = (float)(now) / (float)(RTIMER_SECOND);
+    printf("ALGORITHM DURATION ============================== %ld.%03ld\n", (long) abs((long)t), my_fractional_part(t));
 
     intersect_counter = 0;
     my_coords.x = x;

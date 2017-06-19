@@ -32,6 +32,16 @@
 PROCESS(exercise_3, "Exercise 3");
 AUTOSTART_PROCESSES(&exercise_3);
 
+// Helper function
+long my_fractional_part(float x){
+    if(x>=0.0f) {
+        return (long) ((x - (long) x)*1000);
+    }
+    else{
+        return (long) 0 - ((x - (long) x)*1000);
+    }
+}
+
 // Global variables
 static linkaddr_t addr = {143, 0}; // sink address
 static uint8_t focus = 0;
@@ -298,6 +308,8 @@ static void localize() {
             }
         }
     }
+    rtimer_clock_t now;
+    now = RTIMER_NOW();
 
     ll_coord.x = -5000;
     ll_coord.y = -5000;
@@ -338,6 +350,10 @@ static void localize() {
     }
     int x = my_x();
     int y = my_y();
+    now = (RTIMER_NOW() - now);
+    printf("ALGORITHM DURATION ============================== %u/%u\n", now, RTIMER_SECOND);
+    float t = (float)(now) / (float)(RTIMER_SECOND);
+    printf("ALGORITHM DURATION ============================== %ld.%03ld\n", (long) abs((long)t), my_fractional_part(t));
     printf("I am at x=%d y=%d!\n", x, y);
     printf("DRAW_SQUARE_DENSITY(%d,%d,%d,%d,#00ff00,#ff2211,0.5)\n", ll_coord.x, ll_coord.y, ur_coord.x, ur_coord.y);
     printf("DRAW_CIRCLE(%d,%d,%d,#aaaa00, #44ff44)\n", x, y, 20);
