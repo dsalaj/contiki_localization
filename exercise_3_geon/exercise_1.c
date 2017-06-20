@@ -220,8 +220,8 @@ struct intersect_coords {
 struct intersect_coords intersect[200];
 struct simple_coords my_coords;
 static uint16_t intersect_counter = 0;
-// struct simple_coords ll_coord;
-// struct simple_coords ur_coord;
+struct simple_coords ll_coord;
+struct simple_coords ur_coord;
 struct coords map[32] = {
     {.median_dist = 0, .no_dist = 0, .x = 368, .y = 0},    // node 100
     {.median_dist = 0, .no_dist = 0, .x = 170, .y = 0},    // node 101
@@ -340,12 +340,12 @@ int FindCircleCircleIntersections(
     }
 }
 
-//static int my_x() {
-//    return (ur_coord.x + ll_coord.x)/2;
-//}
-//static int my_y() {
-//    return (ur_coord.y + ll_coord.y)/2;
-//}
+static int my_x() {
+    return (ur_coord.x + ll_coord.x)/2;
+}
+static int my_y() {
+    return (ur_coord.y + ll_coord.y)/2;
+}
 //static int my_precision() {
 //    int x_prec = absolute(absolute(ur_coord.x) - absolute(ll_coord.x));
 //    int y_prec = absolute(absolute(ur_coord.y) - absolute(ll_coord.y));
@@ -415,52 +415,53 @@ static void localize() {
     rtimer_clock_t now;
     now = RTIMER_NOW();
 
-    // // MINMAX algorithm with median
-    // ll_coord.x = -5000;
-    // ll_coord.y = -5000;
-    // ur_coord.x = 5000;
-    // ur_coord.y = 5000;
-    // int ll_x = 0;
-    // int ll_y = 0;
-    // int ur_x = 0;
-    // int ur_y = 0;
-    // uint8_t anchor_counter = 0;
-    // for (anchor_counter = 0; anchor_counter < USED_ANCHOR_NUM; anchor_counter++){
-    //     int dist = (int)(median(map[used_anchors[anchor_counter] % 100].no_dist, map[used_anchors[anchor_counter] % 100].all_dist));
-    //     // int dist = map[used_anchors[anchor_counter] % 100].dist / map[used_anchors[anchor_counter] % 100].no_dist;
-    //     printf("LOCALIZE: node %d distance %d\n", used_anchors[anchor_counter], dist);
-    //     // ignore the far nodes because of large fluctuation in distance
-    //     if (dist > 450) {
-    //         continue;
-    //     }
-    //     ll_x = map[used_anchors[anchor_counter] % 100].x - dist;
-    //     ll_y = map[used_anchors[anchor_counter] % 100].y - dist;
-    //     ur_x = map[used_anchors[anchor_counter] % 100].x + dist;
-    //     ur_y = map[used_anchors[anchor_counter] % 100].y + dist;
-    //     printf("DRAW_SQUARE_DENSITY(%d,%d,%d,%d,#00ff00,none,1.0)\n", ll_x, ll_y, ur_x, ur_y);
-    //     if (ll_x > ll_coord.x){
-    //         ll_coord.x = ll_x;
-    //     }
-    //     if (ll_y > ll_coord.y){
-    //         ll_coord.y = ll_y;
-    //     }
-    //     if (ur_x < ur_coord.x) {
-    //         ur_coord.x = ur_x;
-    //     }
-    //     if (ur_y < ur_coord.y) {
-    //         ur_coord.y = ur_y;
-    //     }
-    //     //map[used_anchors[anchor_counter] % 100].dist = 0;
-    //     map[used_anchors[anchor_counter] % 100].no_dist = 0;
-    // }
-    // int x = my_x();
-    // int y = my_y();
-    // printf("DRAW_SQUARE_DENSITY(%d,%d,%d,%d,#00ff00,#ff2211,0.5)\n", ll_coord.x, ll_coord.y, ur_coord.x, ur_coord.y);
-    // printf("DRAW_CIRCLE(%d,%d,%d,#aaaa00, #44ff44)\n", x, y, 20);
+    // MINMAX algorithm with median
+    ll_coord.x = -5000;
+    ll_coord.y = -5000;
+    ur_coord.x = 5000;
+    ur_coord.y = 5000;
+    int ll_x = 0;
+    int ll_y = 0;
+    int ur_x = 0;
+    int ur_y = 0;
+    uint8_t anchor_counter = 0;
+    for (anchor_counter = 0; anchor_counter < USED_ANCHOR_NUM; anchor_counter++){
+        int dist = (int)(median(map[used_anchors[anchor_counter] % 100].no_dist, map[used_anchors[anchor_counter] % 100].all_dist));
+        // int dist = map[used_anchors[anchor_counter] % 100].dist / map[used_anchors[anchor_counter] % 100].no_dist;
+        printf("LOCALIZE: node %d distance %d\n", used_anchors[anchor_counter], dist);
+        // ignore the far nodes because of large fluctuation in distance
+        if (dist > 450) {
+            continue;
+        }
+        ll_x = map[used_anchors[anchor_counter] % 100].x - dist;
+        ll_y = map[used_anchors[anchor_counter] % 100].y - dist;
+        ur_x = map[used_anchors[anchor_counter] % 100].x + dist;
+        ur_y = map[used_anchors[anchor_counter] % 100].y + dist;
+        printf("DRAW_SQUARE_DENSITY(%d,%d,%d,%d,#0000ff,none,0.3)\n", ll_x, ll_y, ur_x, ur_y);
+        if (ll_x > ll_coord.x){
+            ll_coord.x = ll_x;
+        }
+        if (ll_y > ll_coord.y){
+            ll_coord.y = ll_y;
+        }
+        if (ur_x < ur_coord.x) {
+            ur_coord.x = ur_x;
+        }
+        if (ur_y < ur_coord.y) {
+            ur_coord.y = ur_y;
+        }
+        //map[used_anchors[anchor_counter] % 100].dist = 0;
+        map[used_anchors[anchor_counter] % 100].no_dist = 0;
+    }
+    int mmx = my_x();
+    int mmy = my_y();
+    printf("DRAW_SQUARE_DENSITY(%d,%d,%d,%d,#00ff00,#ff2211,0.3)\n", ll_coord.x, ll_coord.y, ur_coord.x, ur_coord.y);
+    printf("DRAW_CIRCLE(%d,%d,%d,#ffa000, #4444ff)\n", mmx, mmy, 22);
+    printf("DRAW_TEXT_NEXT_TO_POINT(%d,%d,MINMAX)\n", mmx, mmy);
 
     // GEO-N algorithm
     // calculate pythagorean distance to every anchor and clip bottom to 20cm
-    uint8_t anchor_counter = 0;
+    anchor_counter = 0;
     for (anchor_counter = 0; anchor_counter < USED_ANCHOR_NUM; anchor_counter++){
         int32_t mes_dist = (int32_t)(median(map[used_anchors[anchor_counter] % 100].no_dist, map[used_anchors[anchor_counter] % 100].all_dist));
         // calculate the distance as median of measured distance with consideration of height of node when measuring
@@ -500,7 +501,7 @@ static void localize() {
     int x = i_x / intersect_counter;
     int y = i_y / intersect_counter;
     //printf("INTERSECTION AVERAGE x = %d, y = %d\n", x, y);
-    printf("DRAW_CIRCLE(%d,%d,%d,#ffa000, #ff50a0)\n", x, y, 25);
+    printf("DRAW_CIRCLE(%d,%d,%d,#ffa000, #ff50a0)\n", x, y, 20);
     printf("DRAW_TEXT_NEXT_TO_POINT(%d,%d,AVG.INTER.)\n", x, y);
     // calculate in how many circles is each intersection
     i_counter = 0;
@@ -549,19 +550,26 @@ static void localize() {
         }
         printf("DRAW_TEXT_NEXT_TO_POINT(%d,%d,%d)\n", target_x, target_y, intersect[i_counter].in_circles);
     }
-    x = i_x / count_use;
-    y = i_y / count_use;
+
+    int wx = i_x / count_use;
+    int wy = i_y / count_use;
+    printf("DRAW_CIRCLE(%d,%d,%d,#aaaa00, #50ffa0)\n", wx, wy, 20);
+    printf("DRAW_TEXT_NEXT_TO_POINT(%d,%d,W.INTER.)\n", wx, wy);
+
+    intersect_counter = 0;
+    my_coords.x = (wx + x + mmx)/3;
+    my_coords.y = (wy + y + mmy)/3;
+    printf("DRAW_CIRCLE(%d,%d,%d,#ff0000, #ffff00)\n", my_coords.x, my_coords.y, 26);
+    printf("DRAW_CIRCLE(%d,%d,%d,#ff0000, #ffff00)\n", my_coords.x, my_coords.y, 18);
+    printf("DRAW_CIRCLE(%d,%d,%d,#ff0000, #ffff00)\n", my_coords.x, my_coords.y, 10);
+    printf("DRAW_CIRCLE(%d,%d,%d,#ff0000, #ffff00)\n", my_coords.x, my_coords.y, 2);
+
     now = (RTIMER_NOW() - now);
     printf("ALGORITHM DURATION ============================== %u/%u\n", now, RTIMER_SECOND);
     float t = (float)(now) / (float)(RTIMER_SECOND);
     printf("ALGORITHM DURATION ============================== %ld.%03ld\n", (long) abs((long)t), my_fractional_part(t));
 
-    intersect_counter = 0;
-    my_coords.x = x;
-    my_coords.y = y;
     printf("I am at x=%d y=%d!\n", my_coords.x, my_coords.y);
-    printf("DRAW_CIRCLE(%d,%d,%d,#aaaa00, #44ff44)\n", x, y, 20);
-    printf("DRAW_TEXT_NEXT_TO_POINT(%d,%d,FIN.LOC.)\n", x, y);
     forward_to_sink = 1;
     ctimer_set(&sink_timer, (CLOCK_SECOND/2), forward_to_sink_callback, NULL);
 }
